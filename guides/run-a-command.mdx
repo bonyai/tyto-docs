@@ -1,0 +1,95 @@
+---
+title: Run a command
+description: Execute a command inside a nest and read its output
+---
+
+This guide creates a nest, runs a command in a managed session, and streams its output.
+
+## 1. Create a nest
+
+<CodeGroup>
+```bash curl
+curl -s -X POST https://api.tyto.run/nest/ \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-nest", "template": "ubuntu-24-dev"}'
+```
+
+```ts TypeScript
+import { Tyto } from "@bonya-ai/tyto";
+
+const tyto = new Tyto();
+const nest = await tyto.create({ name: "my-nest", template: "ubuntu-24-dev" });
+```
+
+```python Python
+from tyto import Tyto
+
+tyto = Tyto()
+nest = tyto.create(name="my-nest", template="ubuntu-24-dev")
+```
+</CodeGroup>
+
+## 2. Create a session
+
+<CodeGroup>
+```bash curl
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/sessions \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tty": false, "argv": ["bash", "-lc", "echo hi"]}'
+```
+
+```ts TypeScript
+const session = await nest.createSession({ tty: false, argv: ["bash", "-lc", "echo hi"] });
+```
+
+```python Python
+session = nest.create_session(argv=["bash", "-lc", "echo hi"], tty=False)
+```
+</CodeGroup>
+
+## 3. Attach and read output
+
+<CodeGroup>
+```bash curl
+# GET /nest/{id}/sessions/{session_id}/attach is a WebSocket upgrade —
+# use a WebSocket client, e.g. websocat:
+websocat "wss://api.tyto.run/nest/$NEST_ID/sessions/$SESSION_ID/attach" \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+const ws = session.attach();
+ws.on("message", (data) => console.log(String(data)));
+```
+
+```python Python
+with session.attach() as ws:
+    for message in ws:
+        print(message)
+```
+</CodeGroup>
+
+## Checking status without attaching
+
+`GET /nest/{id}/sessions` lists sessions with their `status` (`running`, `exited`, `killed`, `lost`) and `exit_code` once finished — useful for polling instead of streaming.
+
+## Interactive shells
+
+For an interactive terminal instead of a one-shot command, use `GET /nest/{id}/console` (a raw WebSocket, not a managed session):
+
+<CodeGroup>
+```ts TypeScript
+const ws = nest.console();
+```
+
+```python Python
+with nest.console() as ws:
+    ...
+```
+</CodeGroup>
+
+## From an MCP client
+
+If you're driving Tyto from Claude Desktop, Claude Code, or another MCP client, use the `nest_run` tool instead of managing sessions and WebSockets yourself — it runs the command and returns combined stdout/stderr plus the exit code in one call. See [MCP Tools](/mcp/tools).

@@ -1,0 +1,57 @@
+---
+title: Setup
+description: Install and connect the Tyto MCP server
+---
+
+## Install
+
+```bash
+npm install -g @bonya-ai/tyto-mcp
+# or run without installing:
+npx @bonya-ai/tyto-mcp
+```
+
+## Configuration
+
+The server reads its configuration from the environment:
+
+| Env var | Required | Default |
+|---|---|---|
+| `TYTO_API_KEY` | yes | — |
+| `TYTO_API_URL` | no | `https://api.tyto.run` |
+
+## Connect a client
+
+Add the server to your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "tyto": {
+      "command": "tyto-mcp",
+      "env": { "TYTO_API_KEY": "your_key_here" }
+    }
+  }
+}
+```
+
+### Claude Code
+
+```bash
+claude mcp add tyto --env TYTO_API_KEY=your_key_here -- tyto-mcp
+```
+
+## Developing against the server
+
+```bash
+npm install
+npm run typecheck
+npm run build          # emits dist/index.js (executable)
+npm run inspect        # launch the MCP Inspector against the built server
+```
+
+Run from source during development:
+
+```bash
+TYTO_API_KEY=your_key_here npm run dev
+```

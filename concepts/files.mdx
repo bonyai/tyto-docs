@@ -1,0 +1,31 @@
+---
+title: Files
+description: Upload and download files inside a nest
+---
+
+Every nest exposes a simple filesystem API rooted at `/home/tyto`.
+
+- `PUT /nest/{id}/fs/write?path=...&kind=file|dir` uploads a file (`application/octet-stream`) or a directory (`application/x-tar`).
+- `GET /nest/{id}/fs/read?path=...` downloads a file or directory. The response's `X-Tyto-FS-Kind` header tells you whether you got raw file bytes or a tar archive.
+
+`kind` must match what you're sending: `file` for a single file body, `dir` for a tar archive of a directory tree.
+
+Both SDKs wrap this as a single `put`/`get` call that picks the right `kind` and handles tar packing/unpacking for you:
+
+<CodeGroup>
+```ts TypeScript
+await nest.put("./hello.txt", "hello.txt");
+await nest.get("hello.txt", "./hello.downloaded.txt");
+```
+
+```python Python
+nest.put("./hello.txt", "hello.txt")
+nest.get("hello.txt", "./hello.downloaded.txt")
+```
+</CodeGroup>
+
+For lower-level control, both SDKs also expose the raw calls under `nest.fs`.
+
+## Related
+
+<Card title="Transfer files" icon="file" href="/guides/transfer-files" />

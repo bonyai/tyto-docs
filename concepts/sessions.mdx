@@ -1,0 +1,37 @@
+---
+title: Sessions
+description: Run commands inside a nest
+---
+
+There are two ways to execute commands in a nest: **managed sessions**, and raw WebSocket streams.
+
+## Managed sessions
+
+`POST /nest/{id}/sessions` starts a command and tracks it as a first-class object you can list, inspect, attach to, and kill:
+
+```json
+{ "tty": false, "argv": ["bash", "-lc", "echo hi"], "cwd": "/home/tyto", "env": { "FOO": "bar" } }
+```
+
+A session has a `status` of `running`, `exited`, `killed`, or `lost`, plus `exit_code`, `started_at`/`ended_at`, and `attached` (how many clients are currently streaming its I/O).
+
+- `GET /nest/{id}/sessions` lists sessions (`all=true` includes finished ones, `history=true` includes historical records).
+- `GET /nest/{id}/sessions/{session_id}/attach` opens a WebSocket streaming the session's I/O — multiple clients can attach to the same session.
+- `POST /nest/{id}/sessions/{session_id}/kill` sends a signal (default `TERM`) and waits up to `grace_ms` (default `5000`) before force-killing.
+
+## Raw WebSocket streams
+
+For interactive or ad hoc use, two endpoints skip session bookkeeping entirely:
+
+- `GET /nest/{id}/console` — an interactive shell WebSocket (like SSH).
+- `GET /nest/{id}/exec` — a single command WebSocket.
+
+These aren't tracked as sessions and won't show up in `GET /nest/{id}/sessions`.
+
+<Note>
+The MCP server does not expose these WebSocket endpoints as tools, since a long-lived stream doesn't fit a request/response tool call well. Instead it provides `nest_run`, which runs a command in a managed session, redirects output and exit code to files, and reads them back — see [MCP Tools](/mcp/tools).
+</Note>
+
+## Related
+
+<Card title="Run a command" icon="terminal" href="/guides/run-a-command" />

@@ -1,0 +1,69 @@
+---
+title: Keepalive holds
+description: Keep a nest awake while a long-running job needs it
+---
+
+Nests can be stopped automatically after a period of inactivity. If you have a long-running or background job that needs the nest to stay up — with no interactive traffic to signal activity — put a keepalive hold on it.
+
+## Put a hold
+
+<CodeGroup>
+```bash curl
+curl -s -X PUT https://api.tyto.run/nest/$NEST_ID/holds/ci \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ttl": "30m", "reason": "CI job"}'
+```
+
+```ts TypeScript
+await nest.holds.put("ci", { ttl: "30m", reason: "CI job" });
+```
+
+```python Python
+nest.holds.put("ci", ttl="30m", reason="CI job")
+```
+</CodeGroup>
+
+## Heartbeat to extend it
+
+Call this periodically — well before `expires_at` — for as long as your job is still running:
+
+<CodeGroup>
+```bash curl
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/holds/ci/heartbeat \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ttl": "30m"}'
+```
+
+```ts TypeScript
+await nest.holds.heartbeat("ci", { ttl: "30m" });
+```
+
+```python Python
+nest.holds.heartbeat("ci", ttl="30m")
+```
+</CodeGroup>
+
+## Release it
+
+<CodeGroup>
+```bash curl
+curl -s -X DELETE https://api.tyto.run/nest/$NEST_ID/holds/ci \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+await nest.holds.delete("ci");
+```
+
+```python Python
+nest.holds.delete("ci")
+```
+</CodeGroup>
+
+Once the last hold on a nest expires or is deleted, normal inactivity-based sleep rules apply again. `GET /nest/{id}/holds` lists all active holds if you need to check what's currently keeping a nest awake.
+
+## From an MCP client
+
+Use `hold_put`, `hold_heartbeat`, `hold_delete`, and `hold_list`. See [MCP Tools](/mcp/tools).

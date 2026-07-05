@@ -1,0 +1,41 @@
+---
+title: Tools
+description: Tools exposed by the Tyto MCP server
+---
+
+| Tool | Description |
+|---|---|
+| `tyto_whoami` | Return the signed-in user |
+| `tyto_health` | Liveness check |
+| `nest_create` | Create and start a nest |
+| `nest_list` | List nests |
+| `nest_get` | Inspect a nest |
+| `nest_delete` | Delete a nest |
+| `nest_start` | Start a stopped nest |
+| `nest_stop` | Stop a running nest |
+| `nest_wake` | Wake a suspended/stopped nest |
+| `nest_lifecycle` | Get lifecycle state |
+| `nest_run` | Run a command and return its output |
+| `nest_write_file` | Write text content to a file |
+| `nest_read_file` | Read a file's text |
+| `nest_upload` | Upload a local file or directory |
+| `nest_download` | Download a file or directory locally |
+| `session_list` | List managed sessions |
+| `session_kill` | Kill a managed session |
+| `preview_create` | Create a preview URL |
+| `preview_list` | List previews for a nest |
+| `preview_get` | Inspect a preview |
+| `preview_revoke` | Revoke a preview |
+| `snapshot_create` | Create a snapshot |
+| `snapshot_list` | List snapshots |
+| `snapshot_delete` | Delete a snapshot (supports dry-run) |
+| `nest_restore` | Restore a nest from a snapshot |
+| `nest_fork` | Fork a nest into a new one |
+| `hold_list` | List keepalive holds |
+| `hold_put` | Create/replace a keepalive hold |
+| `hold_heartbeat` | Extend a keepalive hold |
+| `hold_delete` | Delete a keepalive hold |
+
+<Note>
+The Tyto WebSocket endpoints (`console`, `exec`, session `attach`) are not exposed as tools. `nest_run` provides run-and-return execution instead: it runs your command in a managed session, redirects output and exit code to files, then reads them back over the filesystem API. This is reliable for both short and long-running commands, unlike a live attach stream in a tool-call context. It returns the combined stdout+stderr followed by an `[exit code: N]` line.
+</Note>

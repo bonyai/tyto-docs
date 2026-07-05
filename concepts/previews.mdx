@@ -1,0 +1,32 @@
+---
+title: Previews
+description: Expose a port running inside a nest over HTTPS
+---
+
+A **preview** exposes a port inside a nest as an HTTPS URL, so you can view a dev server, API, or any other listener from a browser.
+
+`POST /nest/{id}/previews` creates one:
+
+```json
+{ "port": 3000, "auth": "private", "name": "web" }
+```
+
+- `port` must be between 1024 and 65535.
+- `auth` is `private` (requires a Tyto session to view) or `public` (anyone with the URL can view). The `public` boolean field mirrors this.
+- The response includes `url` (or `path_url`) to open, and `expires_in` seconds until the preview token expires.
+
+## Managing previews
+
+- `GET /nest/{id}/previews` lists previews for a nest; `GET /previews/{id}` inspects one by ID.
+- `DELETE /previews/{id}` revokes a preview immediately (sets `revoked_at`).
+
+## How browser traffic reaches a preview
+
+Two unauthenticated endpoints handle the browser side of a preview, and you generally won't call them directly — they're what the preview `url` points to:
+
+- `GET /preview/{id}/_exchange` exchanges a short-lived preview token (`t`) for a browser session, then redirects to `next`.
+- `GET /preview/{id}/{path}` proxies the actual request through to the service running on the nest's port.
+
+## Related
+
+<Card title="Expose a preview" icon="link" href="/guides/expose-a-preview" />

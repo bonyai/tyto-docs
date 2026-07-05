@@ -1,0 +1,85 @@
+---
+title: Snapshot and fork
+description: Save nest disk state and branch off new nests from it
+---
+
+## Create a snapshot
+
+<CodeGroup>
+```bash curl
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/snapshots \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "v1", "stop_if_running": true}'
+```
+
+```ts TypeScript
+const snap = await nest.createSnapshot({ name: "v1" });
+```
+
+```python Python
+snap = nest.create_snapshot(name="v1")
+```
+</CodeGroup>
+
+## Fork into a new nest
+
+Forking copies a snapshot's disk state into a brand-new, running nest — the source nest is left alone unless you set `restart_source`.
+
+<CodeGroup>
+```bash curl
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/fork \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-fork", "stop_if_running": true}'
+```
+
+```ts TypeScript
+const fork = await nest.fork({ name: "my-fork" });
+```
+
+```python Python
+fork = nest.fork(name="my-fork")
+```
+</CodeGroup>
+
+## Restore a nest from a snapshot
+
+The target nest must be **stopped** before restoring.
+
+<CodeGroup>
+```bash curl
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/restore \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"snapshot_id": "snap_123"}'
+```
+
+```python Python
+# nest.restore(snap.id)
+```
+</CodeGroup>
+
+## Delete a snapshot
+
+Use `dry_run` first to see what deleting would actually free, and whether anything (like a dependent fork) blocks it:
+
+<CodeGroup>
+```bash curl
+curl -s -X DELETE "https://api.tyto.run/snapshots/$SNAPSHOT_ID?dry_run=true" \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+
+curl -s -X DELETE "https://api.tyto.run/snapshots/$SNAPSHOT_ID" \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```python Python
+nest.delete_snapshot(snap.id)
+```
+</CodeGroup>
+
+The response reports `can_delete`, `would_free_bytes`, `would_remain_shared_bytes`, and `blocked_by`.
+
+## From an MCP client
+
+Use `snapshot_create`, `snapshot_list`, `snapshot_delete` (supports dry-run), `nest_restore`, and `nest_fork`. See [MCP Tools](/mcp/tools).

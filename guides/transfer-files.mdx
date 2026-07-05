@@ -1,0 +1,71 @@
+---
+title: Transfer files
+description: Upload and download files or directories in a nest
+---
+
+Files live under `/home/tyto` inside a nest. Paths you pass are relative to that root.
+
+## Upload a file
+
+<CodeGroup>
+```bash curl
+curl -s -X PUT "https://api.tyto.run/nest/$NEST_ID/fs/write?path=hello.txt&kind=file" \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @./hello.txt
+```
+
+```ts TypeScript
+await nest.put("./hello.txt", "hello.txt");
+```
+
+```python Python
+nest.put("./hello.txt", "hello.txt")
+```
+</CodeGroup>
+
+## Download a file
+
+<CodeGroup>
+```bash curl
+curl -s "https://api.tyto.run/nest/$NEST_ID/fs/read?path=hello.txt" \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -o ./hello.downloaded.txt
+```
+
+```ts TypeScript
+await nest.get("hello.txt", "./hello.downloaded.txt");
+```
+
+```python Python
+nest.get("hello.txt", "./hello.downloaded.txt")
+```
+</CodeGroup>
+
+## Directories
+
+Set `kind=dir` and send/receive a `.tar` archive instead of raw bytes. Both SDKs handle this automatically when the local path is a directory — `nest.put`/`nest.get` pick `file` or `dir` for you.
+
+<CodeGroup>
+```bash curl
+tar -cf - ./my-project | curl -s -X PUT \
+  "https://api.tyto.run/nest/$NEST_ID/fs/write?path=my-project&kind=dir" \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/x-tar" \
+  --data-binary @-
+```
+
+```ts TypeScript
+await nest.put("./my-project", "my-project");
+```
+
+```python Python
+nest.put("./my-project", "my-project")
+```
+</CodeGroup>
+
+The response to a download includes an `X-Tyto-FS-Kind` header (`file` or `dir`) telling you how to interpret the body.
+
+## From an MCP client
+
+Use the `nest_write_file` / `nest_read_file` tools for small text files, or `nest_upload` / `nest_download` for arbitrary local files and directories. See [MCP Tools](/mcp/tools).

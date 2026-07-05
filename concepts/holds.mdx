@@ -1,0 +1,33 @@
+---
+title: Keepalive Holds
+description: Prevent a nest from going to sleep
+---
+
+Idle nests can be automatically stopped to save resources. A **keepalive hold** tells Tyto to keep a nest awake — for example, while a long CI job or background process is using it, even if there's no interactive activity.
+
+A hold is identified by a `hold_name` (`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$`), scoped to a nest, and has a TTL after which it expires on its own unless renewed.
+
+## Creating and extending a hold
+
+`PUT /nest/{id}/holds/{hold_name}` creates or replaces a hold:
+
+```json
+{ "ttl": "30m", "reason": "CI job", "source": "ci" }
+```
+
+`POST /nest/{id}/holds/{hold_name}/heartbeat` extends an existing hold's expiry — call this periodically from whatever process needs the nest to stay up:
+
+```json
+{ "ttl": "30m" }
+```
+
+Each `KeepaliveHold` reports `expires_at`, `last_heartbeat_at`, `created_at`, and `updated_at`.
+
+## Listing and removing holds
+
+- `GET /nest/{id}/holds` lists all holds on a nest.
+- `DELETE /nest/{id}/holds/{hold_name}` removes a hold immediately, letting the nest sleep according to normal inactivity rules once no holds remain.
+
+## Related
+
+<Card title="Keepalive holds guide" icon="clock" href="/guides/keepalive-holds" />

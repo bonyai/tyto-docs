@@ -1,0 +1,31 @@
+---
+title: Installation
+description: Install and configure the TypeScript SDK
+---
+
+## Install
+
+```bash
+npm install @bonya-ai/tyto
+```
+
+## Configure
+
+<CodeGroup>
+```bash Environment variable
+export TYTO_API_KEY=your_key_here
+```
+
+```ts Explicit
+import { Tyto } from "@bonya-ai/tyto";
+
+const tyto = new Tyto({ apiKey: "your_key_here" });
+```
+</CodeGroup>
+
+| Option | Env var | Default |
+|---|---|---|
+| `apiKey` | `TYTO_API_KEY` | — (required) |
+| `apiUrl` | `TYTO_API_URL` | `https://api.tyto.run` |
+
+With no options, `new Tyto()` reads `TYTO_API_KEY` and `TYTO_API_URL` from the environment.

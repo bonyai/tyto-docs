@@ -1,0 +1,60 @@
+---
+title: Expose a preview
+description: Share a port running inside a nest over HTTPS
+---
+
+If your nest is running a dev server or API on some port, a preview turns that port into an HTTPS URL.
+
+## Create a preview
+
+<CodeGroup>
+```bash curl
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/previews \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"port": 3000, "auth": "private", "name": "web"}'
+```
+
+```ts TypeScript
+const preview = await nest.createPreview({ port: 3000, auth: "private" });
+console.log(preview.url);
+```
+
+```python Python
+preview = nest.create_preview(port=3000, auth="private")
+print(preview.url)
+```
+</CodeGroup>
+
+## Private vs. public
+
+- `auth: "private"` (default) — only someone with a valid Tyto session can view the preview.
+- `auth: "public"` — anyone with the URL can view it. Use this for demos or sharing with people outside your Tyto account.
+
+## List, inspect, and revoke
+
+<CodeGroup>
+```bash curl
+curl -s https://api.tyto.run/nest/$NEST_ID/previews \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+
+curl -s -X DELETE https://api.tyto.run/previews/$PREVIEW_ID \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+const previews = await nest.previews.list();
+await nest.previews.revoke(preview.id!);
+```
+
+```python Python
+previews = nest.previews.list()
+nest.previews.revoke(preview.id)
+```
+</CodeGroup>
+
+Previews also expire on their own — check `expires_at` on the preview object, or `expires_in` (seconds) on the create response.
+
+## From an MCP client
+
+Use `preview_create`, `preview_list`, `preview_get`, and `preview_revoke`. See [MCP Tools](/mcp/tools).

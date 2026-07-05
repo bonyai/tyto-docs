@@ -1,0 +1,55 @@
+---
+title: Snapshots
+description: Capture, restore, and fork nest disk state
+---
+
+A **snapshot** captures a nest's disk state so you can restore it later or fork it into a brand-new running nest.
+
+## Creating a snapshot
+
+`POST /nest/{id}/snapshots`:
+
+```json
+{ "name": "v1", "description": "before migration", "stop_if_running": true }
+```
+
+`stop_if_running` stops the nest first if it's currently running, to get a consistent snapshot.
+
+Each `Snapshot` reports storage accounting so you can reason about cost and cleanup:
+
+| Field | Meaning |
+|---|---|
+| `logical_dirty_bytes` | Bytes changed since the base image |
+| `apparent_bytes` | Logical size of the snapshot's data |
+| `physical_bytes` | Actual bytes stored on disk |
+| `reclaimable_bytes` | Bytes that could be freed if this snapshot were deleted |
+| `reclaimable_status` | Whether reclaimable accounting is up to date |
+| `index_status` | Whether the snapshot's block index is ready |
+
+`GET /nest/{id}/snapshots` lists all snapshots for a nest as a `SnapshotList`.
+
+## Restoring
+
+`POST /nest/{id}/restore` restores a **stopped** nest from a snapshot:
+
+```json
+{ "snapshot_id": "snap_123" }
+```
+
+## Forking
+
+`POST /nest/{id}/fork` creates a brand-new nest from an existing nest's current disk state, without disturbing the source (unless you ask it to restart):
+
+```json
+{ "name": "my-fork", "stop_if_running": true, "restart_source": true }
+```
+
+The response reports the `copy_method` used and `physical_bytes_added_now` for the new nest's storage.
+
+## Deleting
+
+`DELETE /snapshots/{snapshot_id}` deletes a snapshot. Pass `?dry_run=true` to preview the effect first — the response reports `can_delete`, `would_free_bytes`, `would_remain_shared_bytes`, and `blocked_by` (anything preventing deletion, such as a fork that still depends on it) without actually deleting.
+
+## Related
+
+<Card title="Snapshot and fork" icon="camera" href="/guides/snapshot-and-fork" />

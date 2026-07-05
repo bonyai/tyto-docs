@@ -1,0 +1,40 @@
+---
+title: Installation
+description: Install and configure the Python SDK
+---
+
+## Install
+
+```bash
+pip install tyto.run
+```
+
+## Configure
+
+<CodeGroup>
+```bash Environment variable
+export TYTO_API_KEY=your_key_here
+```
+
+```python Explicit
+from tyto import Tyto
+
+tyto = Tyto(api_key="your_key_here")
+```
+</CodeGroup>
+
+| Parameter | Env var | Default |
+|---|---|---|
+| `api_key` | `TYTO_API_KEY` | — (required) |
+| `api_url` | `TYTO_API_URL` | `https://api.tyto.run` |
+
+With no arguments, `Tyto()` reads `TYTO_API_KEY` and `TYTO_API_URL` from the environment.
+
+## Context manager
+
+Use `Tyto` as a context manager to ensure the underlying HTTP connection pool is closed:
+
+```python
+with Tyto() as tyto:
+    nests = tyto.nests.list()
+```

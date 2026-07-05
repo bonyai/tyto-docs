@@ -1,0 +1,43 @@
+---
+title: Nests
+description: The sandboxed environment at the center of Tyto
+---
+
+A **nest** is a sandboxed Linux VM that Tyto creates, runs, and manages for you. Everything else in the API — sessions, files, previews, snapshots, holds — is scoped to a nest.
+
+## Creating a nest
+
+`POST /nest/` creates and starts a nest from a template:
+
+```json
+{ "name": "my-nest", "template": "ubuntu-24-dev" }
+```
+
+- `name` must match `^[a-z][a-z0-9-]{0,62}$`.
+- `template` defaults to `ubuntu-24-dev`. Other options: `ubuntu-dev`, `ubuntu-noble-langs`, `ubuntu-2604-v01`, `ubuntu-latest-twe-v01`.
+- `repo_url` optionally clones a repo into the nest on creation.
+
+## Lifecycle
+
+A nest moves through these statuses:
+
+<Steps>
+  <Step title="creating">The VM is being provisioned.</Step>
+  <Step title="running">The nest is up and reachable for sessions, files, and previews.</Step>
+  <Step title="stopped">The nest was explicitly stopped, or auto-slept due to inactivity — see `sleep_source`.</Step>
+  <Step title="suspended">The nest is paused and can be woken.</Step>
+  <Step title="deleting / deleted">The nest is being torn down or is gone.</Step>
+</Steps>
+
+An `error` status can also occur, with detail in `error_message`.
+
+Use `POST /nest/{id}/stop` to stop a running nest, `POST /nest/{id}/start` to start a stopped one, and `POST /nest/{id}/wake` to wake a suspended or auto-stopped nest — waking returns a `WakeResponse` describing the `from`/`to` status transition and how long it took (`duration_ms`). `GET /nest/{id}/lifecycle` returns the current lifecycle snapshot, including `last_activity_at`, `last_wake_at`, and any `lifecycle_error`.
+
+Nests that sit idle can be put to sleep automatically — see [Keepalive Holds](/concepts/holds) for how to prevent that.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Run a command" icon="terminal" href="/guides/run-a-command" />
+  <Card title="Keepalive holds" icon="clock" href="/guides/keepalive-holds" />
+</CardGroup>

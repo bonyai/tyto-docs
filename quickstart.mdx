@@ -3,10 +3,115 @@ title: Quickstart
 description: Get started with Tyto
 ---
 
-## Installation
+## Get an API key
 
-Add installation steps here.
+Start a CLI browser login. This opens a browser tab for you to approve, and returns an API key once approved.
 
-## Configuration
+<CodeGroup>
+```bash curl
+curl -s -X POST https://api.tyto.run/auth/cli/start | tee /tmp/tyto-login.json
+open "$(jq -r .login_url /tmp/tyto-login.json)"
 
-Add configuration steps here.
+# poll until approved
+curl -s -X POST https://api.tyto.run/auth/cli/poll \
+  -H "Content-Type: application/json" \
+  -d "{\"device_code\": \"$(jq -r .device_code /tmp/tyto-login.json)\"}"
+```
+</CodeGroup>
+
+See [Authentication](/authentication) for the full flow. Once you have a key, export it:
+
+```bash
+export TYTO_API_KEY=your_key_here
+```
+
+## Install an SDK (optional)
+
+<CodeGroup>
+```bash TypeScript
+npm install @bonya-ai/tyto
+```
+
+```bash Python
+pip install tyto.run
+```
+</CodeGroup>
+
+## Create a nest
+
+<CodeGroup>
+```bash curl
+curl -s -X POST https://api.tyto.run/nest/ \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-nest", "template": "ubuntu-24-dev"}'
+```
+
+```ts TypeScript
+import { Tyto } from "@bonya-ai/tyto";
+
+const tyto = new Tyto();
+const nest = await tyto.create({ name: "my-nest", template: "ubuntu-24-dev" });
+console.log(nest.id, nest.status);
+```
+
+```python Python
+from tyto import Tyto
+
+tyto = Tyto()
+nest = tyto.create(name="my-nest", template="ubuntu-24-dev")
+print(nest.id, nest.status)
+```
+</CodeGroup>
+
+## Run a command
+
+<CodeGroup>
+```bash curl
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/sessions \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tty": false, "argv": ["bash", "-lc", "echo hi"]}'
+```
+
+```ts TypeScript
+const session = await nest.createSession({ tty: false, argv: ["bash", "-lc", "echo hi"] });
+const ws = session.attach();
+ws.on("message", (data) => console.log(String(data)));
+```
+
+```python Python
+session = nest.create_session(argv=["bash", "-lc", "echo hi"], tty=False)
+with session.attach() as ws:
+    for message in ws:
+        print(message)
+```
+</CodeGroup>
+
+## Clean up
+
+<CodeGroup>
+```bash curl
+curl -s -X DELETE https://api.tyto.run/nest/$NEST_ID \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+await nest.delete();
+```
+
+```python Python
+nest.delete()
+```
+</CodeGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="cube" href="/concepts/nests">
+    Learn the nest lifecycle, sessions, files, previews, snapshots, and holds.
+  </Card>
+  <Card title="MCP Server" icon="plug" href="/mcp/overview">
+    Connect Tyto to Claude Desktop, Claude Code, or Cursor.
+  </Card>
+</CardGroup>

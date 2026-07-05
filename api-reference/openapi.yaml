@@ -1,0 +1,993 @@
+openapi: 3.1.0
+info:
+  title: Tyto API
+  version: 0.12.0
+  description: Customer-facing API for Tyto nests, sessions, files, previews, snapshots, keepalive holds, and billing.
+servers:
+  - url: https://api.tyto.run
+security:
+  - bearerAuth: []
+tags:
+  - name: Health
+  - name: Authentication
+  - name: Nests
+  - name: Sessions
+  - name: Files
+  - name: Previews
+  - name: Snapshots
+  - name: Holds
+  - name: Billing
+paths:
+  /healthz:
+    get:
+      tags: [Health]
+      security: []
+      summary: Basic liveness check
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OK"
+  /readyz:
+    get:
+      tags: [Health]
+      security: []
+      summary: Readiness check
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OK"
+        "503":
+          $ref: "#/components/responses/Error"
+  /auth/cli/start:
+    post:
+      tags: [Authentication]
+      security: []
+      summary: Start CLI browser login
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthStartRequest"
+      responses:
+        "200":
+          description: Login started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthStartResponse"
+  /auth/cli/poll:
+    post:
+      tags: [Authentication]
+      security: []
+      summary: Poll CLI browser login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthPollRequest"
+      responses:
+        "200":
+          description: Login status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthPollResponse"
+        "410":
+          $ref: "#/components/responses/Error"
+  /auth/browser/start:
+    get:
+      tags: [Authentication]
+      security: []
+      summary: Start browser approval for a CLI login
+      parameters:
+        - name: device_code
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "303":
+          description: Redirects to browser approval
+        "400":
+          $ref: "#/components/responses/Error"
+  /auth/callback:
+    get:
+      tags: [Authentication]
+      security: []
+      summary: Browser login callback
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Login approved
+          content:
+            text/html:
+              schema: { type: string }
+  /me:
+    get:
+      tags: [Authentication]
+      summary: Return the signed-in user
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Error"
+  /me/billing/balance:
+    get:
+      tags: [Billing]
+      summary: Get current credit balance
+      description: Returns the caller's remaining prepaid credit balance in cents. Returns `{"balance_cents":0}` when no billing account exists.
+      operationId: getBillingBalance
+      responses:
+        "200":
+          description: Current balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+        "401":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+  /me/billing/invoices:
+    get:
+      tags: [Billing]
+      summary: List invoices
+      description: Returns the caller's billing invoice history. Returns an empty array when no billing account exists or no invoices have been generated yet.
+      operationId: listBillingInvoices
+      responses:
+        "200":
+          description: Invoice history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invoice"
+        "401":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+  /nest/:
+    post:
+      tags: [Nests]
+      summary: Create and start a nest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNestRequest"
+      responses:
+        "201":
+          description: Created nest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Nest"
+        "400":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+    get:
+      tags: [Nests]
+      summary: List nests
+      responses:
+        "200":
+          description: Nests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Nest"
+  /nest/{id}:
+    parameters:
+      - $ref: "#/components/parameters/NestID"
+    get:
+      tags: [Nests]
+      summary: Inspect a nest
+      responses:
+        "200":
+          description: Nest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Nest"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [Nests]
+      summary: Delete a nest
+      responses:
+        "200":
+          description: Deleted nest state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Nest"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /nest/{id}/start:
+    post:
+      tags: [Nests]
+      summary: Start a stopped nest
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      responses:
+        "200":
+          description: Started nest or wake result
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Nest"
+                  - $ref: "#/components/schemas/WakeResponse"
+  /nest/{id}/stop:
+    post:
+      tags: [Nests]
+      summary: Stop a running nest
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      responses:
+        "200":
+          description: Stopped nest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Nest"
+  /nest/{id}/wake:
+    post:
+      tags: [Nests]
+      summary: Wake a suspended or automatically stopped nest
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WakeRequest"
+      responses:
+        "200":
+          description: Wake result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WakeResponse"
+  /nest/{id}/lifecycle:
+    get:
+      tags: [Nests]
+      summary: Get nest lifecycle state
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      responses:
+        "200":
+          description: Lifecycle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NestLifecycle"
+  /nest/{id}/console:
+    get:
+      tags: [Sessions]
+      summary: Open an interactive shell WebSocket
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      responses:
+        "101":
+          description: WebSocket upgrade
+  /nest/{id}/exec:
+    get:
+      tags: [Sessions]
+      summary: Open a command WebSocket
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      responses:
+        "101":
+          description: WebSocket upgrade
+  /nest/{id}/sessions:
+    post:
+      tags: [Sessions]
+      summary: Create a managed session
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionRequest"
+      responses:
+        "200":
+          description: Session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+    get:
+      tags: [Sessions]
+      summary: List managed sessions
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+        - name: all
+          in: query
+          required: false
+          schema: { type: boolean }
+        - name: history
+          in: query
+          required: false
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+  /nest/{id}/sessions/{session_id}/attach:
+    get:
+      tags: [Sessions]
+      summary: Attach to a managed session WebSocket
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/SessionID"
+      responses:
+        "101":
+          description: WebSocket upgrade
+  /nest/{id}/sessions/{session_id}/kill:
+    post:
+      tags: [Sessions]
+      summary: Kill a managed session
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/SessionID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KillSessionRequest"
+      responses:
+        "200":
+          description: Session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+  /nest/{id}/fs/write:
+    put:
+      tags: [Files]
+      summary: Upload a file or directory under /home/tyto
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+        - name: path
+          in: query
+          required: true
+          schema: { type: string }
+        - name: kind
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [file, dir]
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+          application/x-tar:
+            schema: { type: string, format: binary }
+      responses:
+        "204":
+          description: Uploaded
+  /nest/{id}/fs/read:
+    get:
+      tags: [Files]
+      summary: Download a file or directory from /home/tyto
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+        - name: path
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: File bytes or tar archive
+          headers:
+            X-Tyto-FS-Kind:
+              schema:
+                type: string
+                enum: [file, dir]
+  /nest/{id}/previews:
+    post:
+      tags: [Previews]
+      summary: Create a preview
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePreviewRequest"
+      responses:
+        "201":
+          description: Preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatePreviewResponse"
+    get:
+      tags: [Previews]
+      summary: List previews for a nest
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      responses:
+        "200":
+          description: Previews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Preview"
+  /previews/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Previews]
+      summary: Inspect a preview
+      responses:
+        "200":
+          description: Preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preview"
+    delete:
+      tags: [Previews]
+      summary: Revoke a preview
+      responses:
+        "204":
+          description: Revoked
+  /preview/{id}/_exchange:
+    get:
+      tags: [Previews]
+      security: []
+      summary: Exchange a preview token for a browser session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: t
+          in: query
+          required: true
+          schema: { type: string }
+        - name: next
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "303":
+          description: Browser session started
+  /preview/{id}/{path}:
+    get:
+      tags: [Previews]
+      security: []
+      summary: Proxy browser traffic to a preview
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: path
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Proxied response from the previewed service
+  /nest/{id}/snapshots:
+    post:
+      tags: [Snapshots]
+      summary: Create a snapshot
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSnapshotRequest"
+      responses:
+        "200":
+          description: Snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Snapshot"
+    get:
+      tags: [Snapshots]
+      summary: List snapshots
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      responses:
+        "200":
+          description: Snapshots
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotList"
+  /nest/{id}/restore:
+    post:
+      tags: [Snapshots]
+      summary: Restore a stopped nest from a snapshot
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestoreNestRequest"
+      responses:
+        "200":
+          description: Restore result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreNestResponse"
+  /nest/{id}/fork:
+    post:
+      tags: [Snapshots]
+      summary: Fork a nest into a new running nest
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForkNestRequest"
+      responses:
+        "200":
+          description: Fork result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForkNestResponse"
+  /snapshots/{snapshot_id}:
+    delete:
+      tags: [Snapshots]
+      summary: Delete a snapshot
+      parameters:
+        - name: snapshot_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: dry_run
+          in: query
+          required: false
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Delete result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteSnapshotResponse"
+  /nest/{id}/holds:
+    get:
+      tags: [Holds]
+      summary: List keepalive holds
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+      responses:
+        "200":
+          description: Holds
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KeepaliveHold"
+  /nest/{id}/holds/{hold_name}:
+    put:
+      tags: [Holds]
+      summary: Create or replace a keepalive hold
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/HoldName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HoldRequest"
+      responses:
+        "200":
+          description: Hold
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeepaliveHold"
+    delete:
+      tags: [Holds]
+      summary: Delete a keepalive hold
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/HoldName"
+      responses:
+        "204":
+          description: Deleted
+  /nest/{id}/holds/{hold_name}/heartbeat:
+    post:
+      tags: [Holds]
+      summary: Extend a keepalive hold
+      parameters:
+        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/HoldName"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HoldRequest"
+      responses:
+        "200":
+          description: Hold
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeepaliveHold"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: tyto API key
+  parameters:
+    NestID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    SessionID:
+      name: session_id
+      in: path
+      required: true
+      schema: { type: integer }
+    HoldName:
+      name: hold_name
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$"
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    OK:
+      type: object
+      properties:
+        ok: { type: boolean }
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        message: { type: string }
+    User:
+      type: object
+      required: [id, email]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+    Balance:
+      type: object
+      required: [balance_cents]
+      properties:
+        balance_cents:
+          type: integer
+          description: Remaining prepaid credit balance in cents
+          example: 1000
+    Invoice:
+      type: object
+      required: [id, status, amount_cents, currency]
+      properties:
+        id: { type: string }
+        status:
+          type: string
+          enum: [draft, finalized, voided]
+        amount_cents:
+          type: integer
+          description: Invoice total in cents
+          example: 450
+        currency:
+          type: string
+          example: USD
+        period_start: { type: string, format: date-time }
+        period_end: { type: string, format: date-time }
+        url:
+          type: string
+          format: uri
+          description: Hosted invoice URL for download or payment
+    AuthStartRequest:
+      type: object
+      properties:
+        client: { type: string, default: tyto-cli }
+        hostname: { type: string }
+    AuthStartResponse:
+      type: object
+      required: [login_url, device_code, expires_in]
+      properties:
+        login_url: { type: string, format: uri }
+        device_code: { type: string }
+        expires_in: { type: integer }
+    AuthPollRequest:
+      type: object
+      required: [device_code]
+      properties:
+        device_code: { type: string }
+    AuthPollResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending, approved]
+        api_key: { type: string }
+        user:
+          $ref: "#/components/schemas/User"
+    CreateNestRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          pattern: "^[a-z][a-z0-9-]{0,62}$"
+        template:
+          type: string
+          enum:
+            [
+              ubuntu-24-dev,
+              ubuntu-dev,
+              ubuntu-noble-langs,
+              ubuntu-2604-v01,
+              ubuntu-latest-twe-v01,
+            ]
+          default: ubuntu-24-dev
+        repo_url:
+          type: string
+          format: uri
+    Nest:
+      type: object
+      required: [id, user_id, name, template, status, created_at, updated_at]
+      properties:
+        id: { type: string }
+        user_id: { type: string }
+        name: { type: string }
+        template: { type: string }
+        repo_url: { type: string }
+        status:
+          type: string
+          enum:
+            [creating, running, stopped, suspended, deleting, deleted, error]
+        error_message: { type: string }
+        sleep_source: { type: string }
+        lifecycle_error: { type: string }
+        last_activity_at: { type: string, format: date-time }
+        last_wake_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    WakeRequest:
+      type: object
+      properties:
+        reason: { type: string }
+    WakeResponse:
+      type: object
+      properties:
+        nest_id: { type: string }
+        from: { type: string }
+        to: { type: string }
+        path: { type: string }
+        reason: { type: string }
+        duration_ms: { type: integer, format: int64 }
+    NestLifecycle:
+      type: object
+      properties:
+        nest_id: { type: string }
+        status: { type: string }
+        sleep_source: { type: string }
+        last_activity_at: { type: string, format: date-time }
+        last_wake_at: { type: string, format: date-time }
+        lifecycle_error: { type: string }
+    CreateSessionRequest:
+      type: object
+      required: [tty, argv]
+      properties:
+        tty: { type: boolean }
+        argv:
+          type: array
+          items: { type: string }
+        cwd: { type: string }
+        cols: { type: integer }
+        rows: { type: integer }
+        env:
+          type: object
+          additionalProperties: { type: string }
+    Session:
+      type: object
+      properties:
+        id: { type: integer }
+        nest_id: { type: string }
+        tty: { type: boolean }
+        command: { type: string }
+        cwd: { type: string }
+        status:
+          type: string
+          enum: [running, exited, killed, lost]
+        attached: { type: integer }
+        started_at: { type: string, format: date-time }
+        last_activity_at: { type: string, format: date-time }
+        exit_code: { type: integer }
+        ended_at: { type: string, format: date-time }
+        attach_url: { type: string }
+    KillSessionRequest:
+      type: object
+      properties:
+        signal: { type: string, default: TERM }
+        grace_ms: { type: integer, default: 5000 }
+    CreatePreviewRequest:
+      type: object
+      required: [port]
+      properties:
+        port: { type: integer, minimum: 1024, maximum: 65535 }
+        auth:
+          type: string
+          enum: [private, public]
+        public: { type: boolean }
+        name: { type: string }
+    CreatePreviewResponse:
+      allOf:
+        - $ref: "#/components/schemas/Preview"
+        - type: object
+          properties:
+            expires_in: { type: integer }
+    Preview:
+      type: object
+      properties:
+        id: { type: string }
+        nest_id: { type: string }
+        name: { type: string }
+        port: { type: integer }
+        auth:
+          type: string
+          enum: [private, public]
+        public: { type: boolean }
+        url: { type: string, format: uri }
+        path_url: { type: string, format: uri }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        revoked_at: { type: string, format: date-time }
+    CreateSnapshotRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        stop_if_running: { type: boolean }
+    Snapshot:
+      type: object
+      properties:
+        id: { type: string }
+        nest_id: { type: string }
+        user_id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        state: { type: string }
+        template_id: { type: string }
+        logical_dirty_bytes: { type: integer, format: int64 }
+        apparent_bytes: { type: integer, format: int64 }
+        physical_bytes: { type: integer, format: int64 }
+        reclaimable_bytes: { type: integer, format: int64 }
+        reclaimable_status: { type: string }
+        index_status: { type: string }
+        created_at: { type: string, format: date-time }
+    SnapshotList:
+      type: object
+      properties:
+        nest_id: { type: string }
+        snapshots:
+          type: array
+          items:
+            $ref: "#/components/schemas/Snapshot"
+    RestoreNestRequest:
+      type: object
+      required: [snapshot_id]
+      properties:
+        snapshot_id: { type: string }
+    RestoreNestResponse:
+      type: object
+      properties:
+        nest_id: { type: string }
+        restored_from: { type: string }
+        status: { type: string }
+        message: { type: string }
+    ForkNestRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        stop_if_running: { type: boolean }
+        restart_source: { type: boolean }
+    ForkNestResponse:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        source_nest_id: { type: string }
+        status: { type: string }
+        template_id: { type: string }
+        source_restarted: { type: boolean }
+        source_restart_error: { type: string }
+        storage:
+          type: object
+          properties:
+            copy_method: { type: string }
+            physical_bytes_added_now: { type: integer, format: int64 }
+    DeleteSnapshotResponse:
+      type: object
+      properties:
+        snapshot_id: { type: string }
+        can_delete: { type: boolean }
+        would_free_bytes: { type: integer, format: int64 }
+        would_remain_shared_bytes: { type: integer, format: int64 }
+        reclaimable_status: { type: string }
+        blocked_by:
+          type: array
+          items: { type: string }
+        deleted: { type: boolean }
+    HoldRequest:
+      type: object
+      properties:
+        ttl: { type: string, example: 30m }
+        reason: { type: string }
+        source: { type: string }
+    KeepaliveHold:
+      type: object
+      properties:
+        nest_id: { type: string }
+        name: { type: string }
+        source: { type: string }
+        reason: { type: string }
+        expires_at: { type: string, format: date-time }
+        last_heartbeat_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }

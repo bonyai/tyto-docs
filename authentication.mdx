@@ -1,0 +1,72 @@
+---
+title: Authentication
+description: Get and use a Tyto API key
+---
+
+Every request to the Tyto API (other than health checks and the browser/preview endpoints) requires a bearer token:
+
+```bash
+Authorization: Bearer $TYTO_API_KEY
+```
+
+Both SDKs and the MCP server read this from the `TYTO_API_KEY` environment variable by default, and let you override the API base URL with `TYTO_API_URL` (defaults to `https://api.tyto.run`).
+
+## CLI browser login
+
+This is the flow the `tyto` CLI and other device-style clients use to obtain an API key without ever seeing a password.
+
+<Steps>
+  <Step title="Start a login">
+    `POST /auth/cli/start` returns a `login_url`, a `device_code`, and how long the code is valid for (`expires_in` seconds).
+
+    ```bash
+    curl -s -X POST https://api.tyto.run/auth/cli/start
+    ```
+
+    ```json
+    {
+      "login_url": "https://api.tyto.run/auth/browser/start?device_code=...",
+      "device_code": "...",
+      "expires_in": 600
+    }
+    ```
+  </Step>
+  <Step title="Approve in a browser">
+    Open `login_url`. This hits `GET /auth/browser/start`, which redirects to the sign-in/approval page, and finishes at `GET /auth/callback` once approved.
+  </Step>
+  <Step title="Poll for the API key">
+    `POST /auth/cli/poll` with the `device_code` returns `status: "pending"` until approval, then `status: "approved"` along with `api_key` and the signed-in `user`. The device code expires — a `410` means you need to start over.
+
+    ```bash
+    curl -s -X POST https://api.tyto.run/auth/cli/poll \
+      -H "Content-Type: application/json" \
+      -d '{"device_code": "..."}'
+    ```
+  </Step>
+</Steps>
+
+## Using the key
+
+```bash
+export TYTO_API_KEY=your_key_here
+curl -s https://api.tyto.run/me -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+<CodeGroup>
+```ts TypeScript
+import { Tyto } from "@bonya-ai/tyto";
+
+// reads TYTO_API_KEY / TYTO_API_URL from the environment
+const tyto = new Tyto();
+
+// or pass explicitly
+const tyto2 = new Tyto({ apiKey: "your_key_here" });
+```
+
+```python Python
+import os
+from tyto import Tyto
+
+tyto = Tyto(api_key=os.environ["TYTO_API_KEY"])
+```
+</CodeGroup>
