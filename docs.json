@@ -8,6 +8,10 @@
     "dark": "#166534"
   },
   "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo.svg",
+    "dark": "/logo.svg"
+  },
   "navigation": {
     "tabs": [
       {
@@ -108,7 +112,7 @@
     "primary": {
       "type": "button",
       "label": "Dashboard",
-      "href": "https://example.com"
+      "href": "https://tyto.run/login"
     }
   },
   "footer": {
