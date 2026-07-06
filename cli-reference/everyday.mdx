@@ -1,0 +1,331 @@
+---
+title: Everyday
+description: create, list, console, exec, preview
+---
+
+## `tyto create <name>`
+
+Create and start a new isolated Linux nest. By default, `create` opens a
+console once the nest is ready.
+
+Flags:
+- `--template string` — template id (defaults to the server catalog default)
+- `--repo string` — optional GitHub repo (`owner/name` or `https://github.com/...`)
+- `--no-console` — do not open a console after create (useful in scripts)
+
+<CodeGroup>
+```shell Shell
+tyto create demo
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "demo"}'
+```
+
+```ts TypeScript
+import { Tyto } from "@bonya-ai/tyto";
+
+const tyto = new Tyto();
+const nest = await tyto.create({ name: "demo" });
+```
+
+```python Python
+from tyto import Tyto
+
+tyto = Tyto()
+nest = tyto.create(name="demo")
+```
+</CodeGroup>
+
+Create a nest seeded from a GitHub repo, with an explicit template:
+
+<CodeGroup>
+```shell Shell
+tyto create w1 --repo https://github.com/owner/repo --template ubuntu-24-dev
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "w1", "repo_url": "https://github.com/owner/repo", "template": "ubuntu-24-dev"}'
+```
+
+```ts TypeScript
+const nest = await tyto.create({
+  name: "w1",
+  repoUrl: "https://github.com/owner/repo",
+  template: "ubuntu-24-dev",
+});
+```
+
+```python Python
+nest = tyto.create(
+    name="w1",
+    repo_url="https://github.com/owner/repo",
+    template="ubuntu-24-dev",
+)
+```
+</CodeGroup>
+
+Create a nest without opening a console (useful in scripts/CI):
+
+<CodeGroup>
+```shell Shell
+tyto create ci --no-console
+```
+</CodeGroup>
+
+## `tyto list` (alias: `ls`)
+
+List your nests and their current lifecycle state.
+
+<CodeGroup>
+```shell Shell
+tyto list
+# or the short form:
+tyto ls
+```
+
+```shell API
+curl -s https://api.tyto.run/nest \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+const nests = await tyto.list();
+```
+
+```python Python
+nests = tyto.list()
+```
+</CodeGroup>
+
+List nests as JSON:
+
+<CodeGroup>
+```shell Shell
+tyto ls --json
+```
+</CodeGroup>
+
+## `tyto console <nest>`
+
+Open an interactive shell in a nest. The local terminal is put into raw
+mode for the session's duration and restored on every exit path.
+`SIGWINCH` is forwarded as a resize control frame to the in-guest PTY. Use
+Ctrl+D or `exit` to leave the shell.
+
+Flags:
+- `--non-interactive` — do not enter raw mode (useful for piped input/output)
+
+<CodeGroup>
+```shell Shell
+tyto console web
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/console/prepare \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"cols": 80, "rows": 24}'
+# returns { grant, wss_url, session_id, ... } — connect to wss_url with the grant
+```
+
+```ts TypeScript
+const ws = await nest.console();
+```
+
+```python Python
+with nest.console() as ws:
+    ...
+```
+</CodeGroup>
+
+Open a shell without raw-mode terminal handling:
+
+<CodeGroup>
+```shell Shell
+tyto console web --non-interactive
+```
+</CodeGroup>
+
+## `tyto exec <nest> [-- cmd args...]`
+
+Run a command inside a nest. Use `--` to separate `tyto` flags from the
+command you want to run — `tyto exec` does not split quoted command
+strings, so pass the executable and its arguments separately after `--`.
+
+Flags:
+- `-t, --tty` — allocate a pseudo-TTY for the command
+- `--cwd string` — working directory inside the nest (default `/home/tyto`)
+- `-e, --env stringSlice` — environment variable (`KEY=VALUE`; repeatable)
+
+<CodeGroup>
+```shell Shell
+tyto exec demo -- uname -a
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/sessions \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tty": false, "argv": ["uname", "-a"]}'
+```
+
+```ts TypeScript
+const session = await nest.createSession({ tty: false, argv: ["uname", "-a"] });
+```
+
+```python Python
+session = nest.create_session(argv=["uname", "-a"], tty=False)
+```
+</CodeGroup>
+
+Run an interactive/full-screen command with a TTY:
+
+<CodeGroup>
+```shell Shell
+tyto exec demo --tty -- htop
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/exec/tty/prepare \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"argv": ["htop"]}'
+# returns { grant, wss_url, session_id, ... } — connect to wss_url with the grant
+```
+</CodeGroup>
+
+Run a command with an extra environment variable:
+
+<CodeGroup>
+```shell Shell
+tyto exec demo --env FOO=bar -- env
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/sessions \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tty": false, "argv": ["env"], "env": {"FOO": "bar"}}'
+```
+</CodeGroup>
+
+Run shell syntax (pipes, globs, `&&`) via an explicit shell:
+
+<CodeGroup>
+```shell Shell
+tyto exec demo --tty -- sh -lc 'echo hi && ls'
+```
+</CodeGroup>
+
+## `tyto preview <nest> --port <port>`
+
+Open a browser URL for a dev server running inside a nest. The dev server
+must bind to `0.0.0.0` (not `127.0.0.1`) so the Control Plane proxy can
+reach it. Private previews are the default: the printed URL is a one-shot
+exchange link that sets an HttpOnly session cookie in the browser. Use
+`--public` for a shareable, unauthenticated preview.
+
+Flags:
+- `--port int` — port the nest's dev server is bound to (1024–65535)
+- `--name string` — optional display name for the preview
+- `--public` — make the preview accessible without a private session cookie
+
+<CodeGroup>
+```shell Shell
+tyto exec web -- npm run dev -- --host 0.0.0.0
+tyto preview web --port 3000
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/previews \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"port": 3000}'
+```
+
+```ts TypeScript
+const preview = await nest.createPreview({ port: 3000 });
+console.log(preview.url);
+```
+
+```python Python
+preview = nest.create_preview(port=3000)
+print(preview.url)
+```
+</CodeGroup>
+
+Create a named preview:
+
+<CodeGroup>
+```shell Shell
+tyto preview web --port 5173 --name vite
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/previews \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"port": 5173, "name": "vite"}'
+```
+</CodeGroup>
+
+Create a public, shareable preview:
+
+<CodeGroup>
+```shell Shell
+tyto preview web --port 3000 --public
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/previews \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"port": 3000, "public": true}'
+```
+</CodeGroup>
+
+List previews for a nest:
+
+<CodeGroup>
+```shell Shell
+tyto preview list web
+```
+
+```shell API
+curl -s https://api.tyto.run/nest/$NEST_ID/previews \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+</CodeGroup>
+
+Show one preview's details:
+
+<CodeGroup>
+```shell Shell
+tyto preview inspect web-a1b2
+```
+
+```shell API
+curl -s https://api.tyto.run/previews/web-a1b2 \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+</CodeGroup>
+
+Revoke a preview URL:
+
+<CodeGroup>
+```shell Shell
+tyto preview revoke web-a1b2
+```
+
+```shell API
+curl -s -X DELETE https://api.tyto.run/previews/web-a1b2 \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+</CodeGroup>

@@ -11,9 +11,18 @@ A hold is identified by a `hold_name` (`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$`), sco
 
 `PUT /nest/{id}/holds/{hold_name}` creates or replaces a hold:
 
-```json
-{ "ttl": "30m", "reason": "CI job", "source": "ci" }
+<CodeGroup>
+```shell Shell
+tyto hold create my-nest ci --ttl 30m
 ```
+
+```shell API
+curl -s -X PUT https://api.tyto.run/nest/$NEST_ID/holds/ci \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ttl": "30m", "reason": "CI job", "source": "ci"}'
+```
+</CodeGroup>
 
 `POST /nest/{id}/holds/{hold_name}/heartbeat` extends an existing hold's expiry — call this periodically from whatever process needs the nest to stay up:
 
@@ -30,4 +39,7 @@ Each `KeepaliveHold` reports `expires_at`, `last_heartbeat_at`, `created_at`, an
 
 ## Related
 
-<Card title="Keepalive holds guide" icon="clock" href="/guides/keepalive-holds" />
+<CardGroup cols={2}>
+  <Card title="Keepalive holds guide" icon="clock" href="/guides/keepalive-holds" />
+  <Card title="Data CLI reference" icon="database" href="/cli-reference/data" />
+</CardGroup>

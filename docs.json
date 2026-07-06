@@ -42,6 +42,35 @@
         ]
       },
       {
+        "tab": "CLI Reference",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["cli-reference/overview"]
+          },
+          {
+            "group": "Everyday",
+            "pages": ["cli-reference/everyday"]
+          },
+          {
+            "group": "Lifecycle",
+            "pages": ["cli-reference/lifecycle"]
+          },
+          {
+            "group": "Sessions",
+            "pages": ["cli-reference/sessions"]
+          },
+          {
+            "group": "Data",
+            "pages": ["cli-reference/data"]
+          },
+          {
+            "group": "Account",
+            "pages": ["cli-reference/account"]
+          }
+        ]
+      },
+      {
         "tab": "SDKs",
         "groups": [
           {
@@ -67,51 +96,57 @@
         "tab": "API Reference",
         "groups": [
           {
-            "group": "Health",
+            "group": "Auth",
             "pages": [
-              "api-reference/health/basic-liveness-check",
-              "api-reference/health/readiness-check"
+              "api-reference/auth/start-a-cli-device-code-login",
+              "api-reference/auth/poll-a-cli-device-code-login",
+              "api-reference/auth/public-jwks-for-grant-verification"
             ]
           },
           {
-            "group": "Authentication",
+            "group": "Account",
             "pages": [
-              "api-reference/authentication/start-cli-browser-login",
-              "api-reference/authentication/poll-cli-browser-login",
-              "api-reference/authentication/start-browser-approval-for-a-cli-login",
-              "api-reference/authentication/browser-login-callback",
-              "api-reference/authentication/return-the-signed-in-user"
+              "api-reference/account/get-the-authenticated-user",
+              "api-reference/account/get-current-account-balance",
+              "api-reference/account/list-invoices-for-the-authenticated-user"
             ]
+          },
+          {
+            "group": "Authorize",
+            "pages": ["api-reference/authorize/mint-a-short-lived-exec-grant"]
           },
           {
             "group": "Nests",
             "pages": [
-              "api-reference/nests/create-and-start-a-nest",
-              "api-reference/nests/list-nests",
-              "api-reference/nests/inspect-a-nest",
+              "api-reference/nests/create-a-nest",
+              "api-reference/nests/list-your-nests",
+              "api-reference/nests/get-a-nest",
               "api-reference/nests/delete-a-nest",
               "api-reference/nests/start-a-stopped-nest",
               "api-reference/nests/stop-a-running-nest",
-              "api-reference/nests/wake-a-suspended-or-automatically-stopped-nest",
-              "api-reference/nests/get-nest-lifecycle-state"
+              "api-reference/nests/wake-a-suspended-or-auto-stopped-nest",
+              "api-reference/nests/get-nest-lifecycle-status",
+              "api-reference/nests/fork-a-nest"
+            ]
+          },
+          {
+            "group": "Snapshots",
+            "pages": [
+              "api-reference/snapshots/create-a-snapshot",
+              "api-reference/snapshots/list-snapshots-for-a-nest",
+              "api-reference/snapshots/restore-a-nest-from-a-snapshot",
+              "api-reference/snapshots/delete-a-snapshot"
             ]
           },
           {
             "group": "Sessions",
             "pages": [
-              "api-reference/sessions/open-an-interactive-shell-websocket",
-              "api-reference/sessions/open-a-command-websocket",
+              "api-reference/sessions/prepare-an-interactive-console-pty",
+              "api-reference/sessions/prepare-a-one-off-tty-exec",
               "api-reference/sessions/create-a-managed-session",
-              "api-reference/sessions/list-managed-sessions",
-              "api-reference/sessions/attach-to-a-managed-session-websocket",
+              "api-reference/sessions/list-sessions-for-a-nest",
+              "api-reference/sessions/prepare-a-grant-to-attach-to-a-running-session",
               "api-reference/sessions/kill-a-managed-session"
-            ]
-          },
-          {
-            "group": "Files",
-            "pages": [
-              "api-reference/files/upload-a-file-or-directory-under-home-tyto",
-              "api-reference/files/download-a-file-or-directory-from-home-tyto"
             ]
           },
           {
@@ -119,36 +154,26 @@
             "pages": [
               "api-reference/previews/create-a-preview",
               "api-reference/previews/list-previews-for-a-nest",
-              "api-reference/previews/inspect-a-preview",
+              "api-reference/previews/get-a-preview",
               "api-reference/previews/revoke-a-preview",
-              "api-reference/previews/exchange-a-preview-token-for-a-browser-session",
-              "api-reference/previews/proxy-browser-traffic-to-a-preview"
-            ]
-          },
-          {
-            "group": "Snapshots",
-            "pages": [
-              "api-reference/snapshots/create-a-snapshot",
-              "api-reference/snapshots/list-snapshots",
-              "api-reference/snapshots/restore-a-stopped-nest-from-a-snapshot",
-              "api-reference/snapshots/fork-a-nest-into-a-new-running-nest",
-              "api-reference/snapshots/delete-a-snapshot"
+              "api-reference/previews/exchange-a-one-shot-preview-token-for-a-session-cookie",
+              "api-reference/previews/proxy-a-request-into-a-preview"
             ]
           },
           {
             "group": "Holds",
             "pages": [
-              "api-reference/holds/list-keepalive-holds",
+              "api-reference/holds/list-keepalive-holds-for-a-nest",
               "api-reference/holds/create-or-replace-a-keepalive-hold",
               "api-reference/holds/delete-a-keepalive-hold",
               "api-reference/holds/extend-a-keepalive-hold"
             ]
           },
           {
-            "group": "Billing",
+            "group": "Filesystem",
             "pages": [
-              "api-reference/billing/get-current-credit-balance",
-              "api-reference/billing/list-invoices"
+              "api-reference/filesystem/write-a-file-or-directory-into-a-nest",
+              "api-reference/filesystem/read-a-file-or-directory-from-a-nest"
             ]
           }
         ]

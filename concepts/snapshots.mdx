@@ -9,9 +9,18 @@ A **snapshot** captures a nest's disk state so you can restore it later or fork 
 
 `POST /nest/{id}/snapshots`:
 
-```json
-{ "name": "v1", "description": "before migration", "stop_if_running": true }
+<CodeGroup>
+```shell Shell
+tyto snapshot create my-nest --name v1 --description "before migration" --stop-if-running
 ```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/snapshots \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "v1", "description": "before migration", "stop_if_running": true}'
+```
+</CodeGroup>
 
 `stop_if_running` stops the nest first if it's currently running, to get a consistent snapshot.
 
@@ -52,4 +61,7 @@ The response reports the `copy_method` used and `physical_bytes_added_now` for t
 
 ## Related
 
-<Card title="Snapshot and fork" icon="camera" href="/guides/snapshot-and-fork" />
+<CardGroup cols={2}>
+  <Card title="Snapshot and fork" icon="camera" href="/guides/snapshot-and-fork" />
+  <Card title="Data CLI reference" icon="database" href="/cli-reference/data" />
+</CardGroup>

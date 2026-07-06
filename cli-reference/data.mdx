@@ -1,0 +1,287 @@
+---
+title: Data
+description: snapshot, put, get, hold
+---
+
+## `tyto snapshot` (alias: `snap`)
+
+Save and restore versions of a nest's persistent `/home/tyto` data.
+
+Create a snapshot:
+
+<CodeGroup>
+```shell Shell
+tyto snapshot create web --name before-upgrade
+# or the short form:
+tyto snap create web --name before-upgrade
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/snapshots \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "before-upgrade"}'
+```
+
+```ts TypeScript
+const snapshot = await nest.createSnapshot({ name: "before-upgrade" });
+```
+
+```python Python
+snapshot = nest.create_snapshot(name="before-upgrade")
+```
+</CodeGroup>
+
+Create a snapshot with a description:
+
+<CodeGroup>
+```shell Shell
+tyto snap create web --name clean-install --description "after deps"
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/snapshots \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "clean-install", "description": "after deps"}'
+```
+</CodeGroup>
+
+Create a snapshot, stopping the nest first for a clean checkpoint:
+
+<CodeGroup>
+```shell Shell
+tyto snap create web --stop-if-running
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/snapshots \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "web", "stop_if_running": true}'
+```
+</CodeGroup>
+
+List snapshots for a nest:
+
+<CodeGroup>
+```shell Shell
+tyto snap list web
+```
+
+```shell API
+curl -s https://api.tyto.run/nest/$NEST_ID/snapshots \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+const snapshots = await nest.listSnapshots();
+```
+
+```python Python
+snapshots = nest.list_snapshots()
+```
+</CodeGroup>
+
+Preview the impact of deleting a snapshot without deleting it:
+
+<CodeGroup>
+```shell Shell
+tyto snap delete snap_abc123 --dry-run
+```
+
+```shell API
+curl -s -X DELETE "https://api.tyto.run/snapshots/snap_abc123?dry_run=true" \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+</CodeGroup>
+
+Delete a snapshot:
+
+<CodeGroup>
+```shell Shell
+tyto snap delete snap_abc123 --yes
+# snapshot delete also has a short form for the subcommand:
+tyto snap rm snap_abc123 --yes
+```
+
+```shell API
+curl -s -X DELETE https://api.tyto.run/snapshots/snap_abc123 \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+await snapshot.delete();
+```
+
+```python Python
+snapshot.delete()
+```
+</CodeGroup>
+
+Restore a nest from a snapshot:
+
+<CodeGroup>
+```shell Shell
+tyto restore web --snapshot snap_abc123
+```
+</CodeGroup>
+
+Snapshots cover persistent `/home/tyto` data. Stop the nest first for the
+safest snapshot, or pass `--stop-if-running` to have `tyto` do it for you.
+
+## `tyto put <local> <nest>:<path>`
+
+Upload a file or directory into a nest.
+
+Upload a single file:
+
+<CodeGroup>
+```shell Shell
+tyto put ./hello.txt demo:hello.txt
+```
+
+```shell API
+curl -s -X PUT "https://api.tyto.run/nest/$NEST_ID/fs/write?path=hello.txt&kind=file" \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @./hello.txt
+```
+
+```ts TypeScript
+await nest.putFile("./hello.txt", "hello.txt");
+```
+
+```python Python
+nest.put_file("./hello.txt", "hello.txt")
+```
+</CodeGroup>
+
+Upload a directory:
+
+<CodeGroup>
+```shell Shell
+tyto put ./src demo:src
+```
+
+```shell API
+tar -cf - ./src | curl -s -X PUT "https://api.tyto.run/nest/$NEST_ID/fs/write?path=src&kind=dir" \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/x-tar" \
+  --data-binary @-
+```
+</CodeGroup>
+
+## `tyto get <nest>:<path> [local]`
+
+Download a file or directory from a nest.
+
+Download a single file:
+
+<CodeGroup>
+```shell Shell
+tyto get demo:hello.txt ./hello.txt
+```
+
+```shell API
+curl -s "https://api.tyto.run/nest/$NEST_ID/fs/read?path=hello.txt" \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -o ./hello.txt
+```
+
+```ts TypeScript
+await nest.getFile("hello.txt", "./hello.txt");
+```
+
+```python Python
+nest.get_file("hello.txt", "./hello.txt")
+```
+</CodeGroup>
+
+Download a directory:
+
+<CodeGroup>
+```shell Shell
+tyto get demo:src ./src
+```
+
+```shell API
+curl -s "https://api.tyto.run/nest/$NEST_ID/fs/read?path=src" \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -o - | tar -xf - -C ./src
+```
+</CodeGroup>
+
+Remote paths are relative to `/home/tyto`; absolute paths must start with
+`/home/tyto/` (or equal it, which maps to `.`). `..` traversal is
+rejected.
+
+## `tyto hold`
+
+Keep a nest awake during long-running work by creating short-lived holds.
+Holds are temporary and expire automatically — use them for long builds,
+deploys, or preview sessions.
+
+Create a hold with a TTL:
+
+<CodeGroup>
+```shell Shell
+tyto hold create web deploy --ttl 30m
+```
+
+```shell API
+curl -s -X PUT https://api.tyto.run/nest/$NEST_ID/holds/deploy \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ttl": "30m"}'
+```
+
+```ts TypeScript
+await nest.createHold("deploy", { ttl: "30m" });
+```
+
+```python Python
+nest.create_hold("deploy", ttl="30m")
+```
+</CodeGroup>
+
+Extend a hold before it expires:
+
+<CodeGroup>
+```shell Shell
+tyto hold heartbeat web deploy --ttl 30m
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/holds/deploy/heartbeat \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ttl": "30m"}'
+```
+</CodeGroup>
+
+List active holds:
+
+<CodeGroup>
+```shell Shell
+tyto hold list web
+```
+
+```shell API
+curl -s https://api.tyto.run/nest/$NEST_ID/holds \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+</CodeGroup>
+
+Remove a hold:
+
+<CodeGroup>
+```shell Shell
+tyto hold delete web deploy
+```
+
+```shell API
+curl -s -X DELETE https://api.tyto.run/nest/$NEST_ID/holds/deploy \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+</CodeGroup>

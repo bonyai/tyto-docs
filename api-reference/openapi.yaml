@@ -1,157 +1,748 @@
-openapi: 3.1.0
+openapi: "3.0.3"
 info:
-  title: Tyto API
-  version: 0.12.0
-  description: Customer-facing API for Tyto nests, sessions, files, previews, snapshots, keepalive holds, and billing.
+  title: Tyto Control Plane API
+  description: >
+    Public Control Plane API for Tyto. This is the surface used by the
+    `tyto` CLI to authenticate, manage nests, and work with sessions,
+    snapshots, previews, and holds. Most endpoints require a bearer API
+    key. See `/admin/docs` for the separate admin panel API.
+  version: "1.0.0"
+
 servers:
-  - url: https://api.tyto.run
+  - url: /
+
 security:
   - bearerAuth: []
-tags:
-  - name: Health
-  - name: Authentication
-  - name: Nests
-  - name: Sessions
-  - name: Files
-  - name: Previews
-  - name: Snapshots
-  - name: Holds
-  - name: Billing
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: tyto-api-key
+      description: Tyto API key (obtained via `tyto login` or /auth/cli/poll)
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    AppErrorEnvelope:
+      type: object
+      required: [error]
+      description: >
+        Richer error envelope returned by a subset of endpoints (currently
+        only hostd-call failures during nest creation) instead of the plain
+        Error schema.
+      properties:
+        error:
+          type: object
+          required: [code, message, retryable]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            request_id:
+              type: string
+            source:
+              type: string
+            operation:
+              type: string
+            stage:
+              type: string
+            retryable:
+              type: boolean
+
+    NestStatus:
+      type: string
+      enum:
+        - creating
+        - running
+        - suspending
+        - suspended
+        - resuming
+        - stopped
+        - error
+        - deleting
+        - deleted
+
+    Nest:
+      type: object
+      required: [id, user_id, name, status, host_id, last_activity_at, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        template:
+          type: string
+        repo_url:
+          type: string
+        status:
+          $ref: "#/components/schemas/NestStatus"
+        host_id:
+          type: string
+        guest_ip:
+          type: string
+        sleep_source:
+          type: string
+        warm_snapshot_ref:
+          type: string
+        lifecycle_error:
+          type: string
+        error_message:
+          type: string
+        error_code:
+          type: string
+        error_retryable:
+          type: boolean
+        last_activity_at:
+          type: string
+          format: date-time
+        last_wake_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        compute_started_at:
+          type: string
+          format: date-time
+          nullable: true
+        total_compute_seconds:
+          type: integer
+          format: int64
+
+    User:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+
+    Snapshot:
+      type: object
+      required: [id, nest_id, user_id, name, state, template_id, created_at]
+      properties:
+        id:
+          type: string
+        nest_id:
+          type: string
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        state:
+          type: string
+        template_id:
+          type: string
+        logical_dirty_bytes:
+          type: integer
+          format: int64
+        apparent_bytes:
+          type: integer
+          format: int64
+        physical_bytes:
+          type: integer
+          format: int64
+        reclaimable_bytes:
+          type: integer
+          format: int64
+        reclaimable_status:
+          type: string
+        index_status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    KeepaliveHold:
+      type: object
+      required: [nest_id, name, source, expires_at, created_at, updated_at]
+      properties:
+        nest_id:
+          type: string
+        name:
+          type: string
+        source:
+          type: string
+        reason:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        last_heartbeat_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PreviewView:
+      type: object
+      required: [id, nest_id, port, auth, public, url, created_at]
+      properties:
+        id:
+          type: string
+        nest_id:
+          type: string
+        name:
+          type: string
+        port:
+          type: integer
+        auth:
+          type: string
+          enum: [private, public]
+        public:
+          type: boolean
+        url:
+          type: string
+          format: uri
+        path_url:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    PreviewCreateResponse:
+      type: object
+      required: [id, port, auth, public, url]
+      properties:
+        id:
+          type: string
+        nest_id:
+          type: string
+        name:
+          type: string
+        port:
+          type: integer
+        auth:
+          type: string
+          enum: [private, public]
+        public:
+          type: boolean
+        url:
+          type: string
+          format: uri
+        path_url:
+          type: string
+        expires_in:
+          type: integer
+          description: Seconds until the one-shot exchange link expires (private previews only)
+
+    Session:
+      type: object
+      required: [id, nest_id, tty, command, cwd, status, attached, started_at]
+      properties:
+        id:
+          type: integer
+        nest_id:
+          type: string
+        tty:
+          type: boolean
+        command:
+          type: string
+        cwd:
+          type: string
+        status:
+          type: string
+          enum: [running, exited, killed, lost]
+        attached:
+          type: integer
+          description: Number of currently attached clients
+        started_at:
+          type: string
+          format: date-time
+        last_activity_at:
+          type: string
+          format: date-time
+          nullable: true
+        exit_code:
+          type: integer
+          nullable: true
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+        attach_url:
+          type: string
+          description: Relative path to POST for a session-attach grant
+
+    LifecycleStatus:
+      type: object
+      required: [nest_id, status, last_activity_at]
+      properties:
+        nest_id:
+          type: string
+        status:
+          type: string
+        sleep_source:
+          type: string
+        warm_snapshot_ref:
+          type: string
+        last_activity_at:
+          type: string
+          format: date-time
+        last_wake_at:
+          type: string
+          format: date-time
+          nullable: true
+        lifecycle_error:
+          type: string
+
+    RouteMeta:
+      type: object
+      properties:
+        host_id:
+          type: string
+        guest_ip:
+          type: string
+        vsock_cid:
+          type: integer
+          nullable: true
+        proxy_endpoint:
+          type: string
+        route_key:
+          type: string
+        exec_path:
+          type: string
+        pty_path:
+          type: string
+        route_hint:
+          type: string
+
+    AuthorizeResponse:
+      type: object
+      required: [grant, token_type, expires_at, expires_in, grant_id, jti, aud, op, payload_hash, principal_id, api_key_id, nest_id, host_id]
+      properties:
+        grant:
+          type: string
+          description: Signed short-lived JWT grant
+        token_type:
+          type: string
+          example: Bearer
+        expires_at:
+          type: string
+          format: date-time
+        expires_in:
+          type: integer
+          format: int64
+        grant_id:
+          type: string
+        jti:
+          type: string
+        aud:
+          type: string
+        op:
+          type: string
+        payload_hash:
+          type: string
+        principal_id:
+          type: string
+        api_key_id:
+          type: string
+        nest_id:
+          type: string
+        nest_name:
+          type: string
+        host_id:
+          type: string
+        sandbox_boot_id:
+          type: string
+        sandboxd_instance_id:
+          type: string
+        generation:
+          type: integer
+          format: int64
+        route_epoch:
+          type: integer
+          format: int64
+        route_nonce:
+          type: string
+        keyset_version:
+          type: integer
+          format: int64
+        auth_epoch:
+          type: integer
+          format: int64
+        routing:
+          $ref: "#/components/schemas/RouteMeta"
+
+    PTYPrepareResponse:
+      allOf:
+        - $ref: "#/components/schemas/AuthorizeResponse"
+        - type: object
+          required: [wss_url, session_id]
+          properties:
+            wss_url:
+              type: string
+              format: uri
+              description: WebSocket URL to connect to for the PTY/exec stream
+            session_id:
+              type: integer
+
+    RestoreResponse:
+      type: object
+      required: [nest_id, restored_from, status, message]
+      properties:
+        nest_id:
+          type: string
+        restored_from:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+
+    ForkResponse:
+      type: object
+      required: [id, name, source_nest_id, status, template_id, nest_path, storage]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        source_nest_id:
+          type: string
+        status:
+          type: string
+        template_id:
+          type: string
+        nest_path:
+          type: string
+        source_restarted:
+          type: boolean
+        source_restart_error:
+          type: string
+        storage:
+          type: object
+          required: [copy_method, physical_bytes_added_now]
+          properties:
+            copy_method:
+              type: string
+            physical_bytes_added_now:
+              type: integer
+              format: int64
+
+    DeleteSnapshotResponse:
+      type: object
+      required: [snapshot_id, can_delete, would_free_bytes, would_remain_shared_bytes, reclaimable_status, blocked_by]
+      properties:
+        snapshot_id:
+          type: string
+        can_delete:
+          type: boolean
+        would_free_bytes:
+          type: integer
+          format: int64
+        would_remain_shared_bytes:
+          type: integer
+          format: int64
+        reclaimable_status:
+          type: string
+        blocked_by:
+          type: array
+          items:
+            type: string
+        deleted:
+          type: boolean
+
+    Invoice:
+      type: object
+      required: [id, status, amount_cents, currency]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [draft, finalized, voided]
+        amount_cents:
+          type: integer
+        currency:
+          type: string
+        period_start:
+          type: string
+          format: date-time
+        period_end:
+          type: string
+          format: date-time
+        url:
+          type: string
+          format: uri
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid API key
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    NotFound:
+      description: Resource not found, or not owned by the caller
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    BadRequest:
+      description: Invalid request parameters or body
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    Conflict:
+      description: A lifecycle operation is already running on this nest, or the nest is not in a valid state for this operation
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    BadGateway:
+      description: Upstream hostd error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    ServiceUnavailable:
+      description: Nest cannot be woken right now (manual stop, wake disabled, or wake timed out)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  parameters:
+    nestId:
+      name: id
+      in: path
+      description: Nest ID
+      required: true
+      schema:
+        type: string
+
+    snapshotId:
+      name: snapshot_id
+      in: path
+      description: Snapshot ID
+      required: true
+      schema:
+        type: string
+
+    previewId:
+      name: id
+      in: path
+      description: Preview ID
+      required: true
+      schema:
+        type: string
+
+    sessionId:
+      name: session_id
+      in: path
+      description: Session ID
+      required: true
+      schema:
+        type: integer
+
+    holdName:
+      name: hold_name
+      in: path
+      description: Hold name
+      required: true
+      schema:
+        type: string
+
 paths:
-  /healthz:
-    get:
-      tags: [Health]
-      security: []
-      summary: Basic liveness check
-      responses:
-        "200":
-          description: Service is alive
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OK"
-  /readyz:
-    get:
-      tags: [Health]
-      security: []
-      summary: Readiness check
-      responses:
-        "200":
-          description: Service is ready
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OK"
-        "503":
-          $ref: "#/components/responses/Error"
   /auth/cli/start:
     post:
-      tags: [Authentication]
+      tags: [Auth]
+      summary: Start a CLI device-code login
+      description: Kicks off the `tyto login` device-code flow. Returns a login URL to open in a browser and a device code to poll.
+      operationId: authCliStart
       security: []
-      summary: Start CLI browser login
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AuthStartRequest"
-      responses:
-        "200":
-          description: Login started
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthStartResponse"
-  /auth/cli/poll:
-    post:
-      tags: [Authentication]
-      security: []
-      summary: Poll CLI browser login
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AuthPollRequest"
+              type: object
+              required: [op]
+              properties:
+                client:
+                  type: string
+                hostname:
+                  type: string
+                provider:
+                  type: string
+                  enum: [github, google, magiclink]
+                  default: github
+                email:
+                  type: string
+                  format: email
+                  description: Required when provider is magiclink
       responses:
         "200":
-          description: Login status
+          description: Device code issued
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthPollResponse"
-        "410":
-          $ref: "#/components/responses/Error"
-  /auth/browser/start:
-    get:
-      tags: [Authentication]
-      security: []
-      summary: Start browser approval for a CLI login
-      parameters:
-        - name: device_code
-          in: query
-          required: true
-          schema: { type: string }
-      responses:
-        "303":
-          description: Redirects to browser approval
+                type: object
+                required: [device_code, expires_in]
+                properties:
+                  login_url:
+                    type: string
+                    format: uri
+                  device_code:
+                    type: string
+                  expires_in:
+                    type: integer
         "400":
-          $ref: "#/components/responses/Error"
-  /auth/callback:
-    get:
-      tags: [Authentication]
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /auth/cli/poll:
+    post:
+      tags: [Auth]
+      summary: Poll a CLI device-code login
+      description: Polled by `tyto login` until the browser-side approval completes.
+      operationId: authCliPoll
       security: []
-      summary: Browser login callback
-      parameters:
-        - name: code
-          in: query
-          required: false
-          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_code]
+              properties:
+                device_code:
+                  type: string
       responses:
         "200":
-          description: Login approved
+          description: Pending or approved
           content:
-            text/html:
-              schema: { type: string }
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [pending, approved]
+                  api_key:
+                    type: string
+                  user:
+                    $ref: "#/components/schemas/User"
+                  message:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: Unknown device code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "410":
+          description: Device code expired, denied, or already consumed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /me:
     get:
-      tags: [Authentication]
-      summary: Return the signed-in user
+      tags: [Account]
+      summary: Get the authenticated user
+      operationId: getMe
       responses:
         "200":
-          description: User
+          description: Current user
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
         "401":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/Unauthorized"
+
   /me/billing/balance:
     get:
-      tags: [Billing]
-      summary: Get current credit balance
-      description: Returns the caller's remaining prepaid credit balance in cents. Returns `{"balance_cents":0}` when no billing account exists.
-      operationId: getBillingBalance
+      tags: [Account]
+      summary: Get current account balance
+      description: Only available when billing is configured on the Control Plane.
+      operationId: getMyBillingBalance
       responses:
         "200":
           description: Current balance
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Balance"
+                type: object
+                required: [balance_cents]
+                properties:
+                  balance_cents:
+                    type: integer
+                    format: int64
         "401":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/Unauthorized"
         "500":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/InternalServerError"
+
   /me/billing/invoices:
     get:
-      tags: [Billing]
-      summary: List invoices
-      description: Returns the caller's billing invoice history. Returns an empty array when no billing account exists or no invoices have been generated yet.
-      operationId: listBillingInvoices
+      tags: [Account]
+      summary: List invoices for the authenticated user
+      description: Only available when billing is configured on the Control Plane.
+      operationId: listMyInvoices
       responses:
         "200":
-          description: Invoice history
+          description: Invoices, most recent first
           content:
             application/json:
               schema:
@@ -159,48 +750,146 @@ paths:
                 items:
                   $ref: "#/components/schemas/Invoice"
         "401":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/Unauthorized"
         "500":
-          $ref: "#/components/responses/Error"
-  /nest/:
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/authorize:
     post:
-      tags: [Nests]
-      summary: Create and start a nest
+      tags: [Authorize]
+      summary: Mint a short-lived exec grant
+      description: >
+        Mints a signed, short-lived JWT grant used by sandboxd for exec/pty
+        operations against a specific nest. Also reachable at `/authorize`.
+      operationId: authorize
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateNestRequest"
+              type: object
+              required: [op, payload_hash]
+              properties:
+                nest_id:
+                  type: string
+                  description: Set exactly one of nest_id or nest_name
+                nest_name:
+                  type: string
+                op:
+                  type: string
+                  enum: [exec_start]
+                aud:
+                  type: string
+                payload_hash:
+                  type: string
+                  description: 'Must match the pattern "sha256:<base64url>"'
+      responses:
+        "200":
+          description: Grant minted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthorizeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          description: Request body too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /nest:
+    post:
+      tags: [Nests]
+      summary: Create a nest
+      description: Creates and provisions a new isolated Linux nest.
+      operationId: createNest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  pattern: '^[a-z][a-z0-9-]{0,62}$'
+                template:
+                  type: string
+                  description: >
+                    One of ubuntu-24-dev, ubuntu-dev, ubuntu-noble-langs,
+                    ubuntu-2604-v01, ubuntu-latest-twe-v01. Defaults to
+                    ubuntu-24-dev.
+                repo_url:
+                  type: string
+                  format: uri
+                  description: Must be an https://github.com/... URL
       responses:
         "201":
-          description: Created nest
+          description: Nest created
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Nest"
         "400":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "409":
-          $ref: "#/components/responses/Error"
+          description: A nest with that name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          description: Upstream hostd error creating the nest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorEnvelope"
     get:
       tags: [Nests]
-      summary: List nests
+      summary: List your nests
+      operationId: listNests
       responses:
         "200":
-          description: Nests
+          description: Nests owned by the caller
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/Nest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /nest/{id}:
-    parameters:
-      - $ref: "#/components/parameters/NestID"
     get:
       tags: [Nests]
-      summary: Inspect a nest
+      summary: Get a nest
+      operationId: getNest
+      parameters:
+        - $ref: "#/components/parameters/nestId"
       responses:
         "200":
           description: Nest
@@ -208,132 +897,507 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Nest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     delete:
       tags: [Nests]
       summary: Delete a nest
+      description: Deletes the nest and its persistent /home/tyto data. Irreversible unless a snapshot exists.
+      operationId: deleteNest
+      parameters:
+        - $ref: "#/components/parameters/nestId"
       responses:
         "200":
-          description: Deleted nest state
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Nest"
+          description: Nest deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/NotFound"
         "409":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
   /nest/{id}/start:
     post:
       tags: [Nests]
       summary: Start a stopped nest
+      operationId: startNest
       parameters:
-        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/nestId"
       responses:
         "200":
-          description: Started nest or wake result
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: "#/components/schemas/Nest"
-                  - $ref: "#/components/schemas/WakeResponse"
-  /nest/{id}/stop:
-    post:
-      tags: [Nests]
-      summary: Stop a running nest
-      parameters:
-        - $ref: "#/components/parameters/NestID"
-      responses:
-        "200":
-          description: Stopped nest
+          description: Nest started (or wake result if it was suspended)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Nest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /nest/{id}/stop:
+    post:
+      tags: [Nests]
+      summary: Stop a running nest
+      description: Stops the nest; persistent /home/tyto data survives stop/start cycles.
+      operationId: stopNest
+      parameters:
+        - $ref: "#/components/parameters/nestId"
+      responses:
+        "200":
+          description: Nest stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Nest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
   /nest/{id}/wake:
     post:
       tags: [Nests]
-      summary: Wake a suspended or automatically stopped nest
+      summary: Wake a suspended or auto-stopped nest
+      operationId: wakeNest
       parameters:
-        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/nestId"
       requestBody:
-        required: false
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/WakeRequest"
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Operator-visible wake reason label (defaults to "cli")
       responses:
         "200":
           description: Wake result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WakeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
   /nest/{id}/lifecycle:
     get:
       tags: [Nests]
-      summary: Get nest lifecycle state
+      summary: Get nest lifecycle status
+      operationId: getNestLifecycle
       parameters:
-        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/nestId"
       responses:
         "200":
-          description: Lifecycle
+          description: Lifecycle status
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NestLifecycle"
-  /nest/{id}/console:
-    get:
-      tags: [Sessions]
-      summary: Open an interactive shell WebSocket
-      parameters:
-        - $ref: "#/components/parameters/NestID"
-      responses:
-        "101":
-          description: WebSocket upgrade
-  /nest/{id}/exec:
-    get:
-      tags: [Sessions]
-      summary: Open a command WebSocket
-      parameters:
-        - $ref: "#/components/parameters/NestID"
-      responses:
-        "101":
-          description: WebSocket upgrade
-  /nest/{id}/sessions:
+                $ref: "#/components/schemas/LifecycleStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /nest/{id}/restore:
     post:
-      tags: [Sessions]
-      summary: Create a managed session
+      tags: [Snapshots]
+      summary: Restore a nest from a snapshot
+      description: Requires the nest to be stopped.
+      operationId: restoreNest
       parameters:
-        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/nestId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateSessionRequest"
+              type: object
+              required: [snapshot_id]
+              properties:
+                snapshot_id:
+                  type: string
       responses:
         "200":
-          description: Session
+          description: Restore result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /nest/{id}/fork:
+    post:
+      tags: [Nests]
+      summary: Fork a nest
+      description: Forks a nest into a new running nest with its own persistent data.
+      operationId: forkNest
+      parameters:
+        - $ref: "#/components/parameters/nestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                stop_if_running:
+                  type: boolean
+                  description: Stop the source nest before forking
+                restart_source:
+                  type: boolean
+      responses:
+        "201":
+          description: Fork created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /nest/{id}/snapshots:
+    post:
+      tags: [Snapshots]
+      summary: Create a snapshot
+      operationId: createSnapshot
+      parameters:
+        - $ref: "#/components/parameters/nestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                stop_if_running:
+                  type: boolean
+                  description: Stop the nest first instead of live checkpointing
+      responses:
+        "201":
+          description: Snapshot created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Snapshot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+    get:
+      tags: [Snapshots]
+      summary: List snapshots for a nest
+      operationId: listSnapshots
+      parameters:
+        - $ref: "#/components/parameters/nestId"
+      responses:
+        "200":
+          description: Snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [nest_id, snapshots]
+                properties:
+                  nest_id:
+                    type: string
+                  snapshots:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Snapshot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /snapshots/{snapshot_id}:
+    delete:
+      tags: [Snapshots]
+      summary: Delete a snapshot
+      operationId: deleteSnapshot
+      parameters:
+        - $ref: "#/components/parameters/snapshotId"
+        - name: dry_run
+          in: query
+          description: Preview deletion impact without deleting
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Deletion result (or dry-run preview)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteSnapshotResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /nest/{id}/console/prepare:
+    post:
+      tags: [Sessions]
+      summary: Prepare an interactive console PTY
+      description: Used internally by `tyto console`. Returns a signed grant and websocket URL to connect a PTY to.
+      operationId: prepareConsolePTY
+      parameters:
+        - $ref: "#/components/parameters/nestId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                argv:
+                  type: array
+                  items:
+                    type: string
+                  description: Defaults to ["/bin/bash", "-l"]
+                env:
+                  type: object
+                  additionalProperties:
+                    type: string
+                cwd:
+                  type: string
+                  description: Defaults to /home/tyto
+                cols:
+                  type: integer
+                rows:
+                  type: integer
+                replay_bytes:
+                  type: integer
+                  description: Defaults to 4096
+      responses:
+        "201":
+          description: PTY grant issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PTYPrepareResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          description: Request body too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /nest/{id}/exec/tty/prepare:
+    post:
+      tags: [Sessions]
+      summary: Prepare a one-off TTY exec
+      description: Used internally by `tyto exec --tty`. Argv is required.
+      operationId: prepareTTYExec
+      parameters:
+        - $ref: "#/components/parameters/nestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [argv]
+              properties:
+                argv:
+                  type: array
+                  items:
+                    type: string
+                env:
+                  type: object
+                  additionalProperties:
+                    type: string
+                cwd:
+                  type: string
+                  description: Defaults to /home/tyto
+                cols:
+                  type: integer
+                rows:
+                  type: integer
+      responses:
+        "201":
+          description: PTY grant issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PTYPrepareResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /nest/{id}/sessions:
+    post:
+      tags: [Sessions]
+      summary: Create a managed session
+      description: >
+        Used internally by `tyto exec` (non-tty) and `tyto console`'s
+        session bookkeeping. If argv is empty it defaults to
+        ["/bin/bash", "-l"] and forces tty=true; otherwise tty must be true.
+      operationId: createSession
+      parameters:
+        - $ref: "#/components/parameters/nestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tty, argv]
+              properties:
+                tty:
+                  type: boolean
+                argv:
+                  type: array
+                  items:
+                    type: string
+                cwd:
+                  type: string
+                  description: Defaults to /home/tyto
+                cols:
+                  type: integer
+                rows:
+                  type: integer
+                env:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        "201":
+          description: Session created
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       tags: [Sessions]
-      summary: List managed sessions
+      summary: List sessions for a nest
+      operationId: listSessions
       parameters:
-        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/nestId"
         - name: all
           in: query
-          required: false
-          schema: { type: boolean }
+          description: Include exited, killed, and lost sessions
+          schema:
+            type: boolean
+            default: false
         - name: history
           in: query
-          required: false
-          schema: { type: boolean }
+          description: Alias for all=1
+          schema:
+            type: boolean
+            default: false
       responses:
         "200":
           description: Sessions
@@ -343,104 +1407,144 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Session"
-  /nest/{id}/sessions/{session_id}/attach:
-    get:
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /nest/{id}/sessions/{session_id}/attach/prepare:
+    post:
       tags: [Sessions]
-      summary: Attach to a managed session WebSocket
+      summary: Prepare a grant to attach to a running session
+      operationId: prepareSessionAttach
       parameters:
-        - $ref: "#/components/parameters/NestID"
-        - $ref: "#/components/parameters/SessionID"
+        - $ref: "#/components/parameters/nestId"
+        - $ref: "#/components/parameters/sessionId"
       responses:
-        "101":
-          description: WebSocket upgrade
+        "201":
+          description: Attach grant issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PTYPrepareResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Nest or session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "410":
+          description: Session is no longer running/attachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
   /nest/{id}/sessions/{session_id}/kill:
     post:
       tags: [Sessions]
       summary: Kill a managed session
+      operationId: killSession
       parameters:
-        - $ref: "#/components/parameters/NestID"
-        - $ref: "#/components/parameters/SessionID"
+        - $ref: "#/components/parameters/nestId"
+        - $ref: "#/components/parameters/sessionId"
       requestBody:
-        required: false
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/KillSessionRequest"
+              type: object
+              properties:
+                signal:
+                  type: string
+                  default: TERM
+                grace_ms:
+                  type: integer
       responses:
         "200":
-          description: Session
+          description: Session killed
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Nest or session not found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Session"
-  /nest/{id}/fs/write:
-    put:
-      tags: [Files]
-      summary: Upload a file or directory under /home/tyto
-      parameters:
-        - $ref: "#/components/parameters/NestID"
-        - name: path
-          in: query
-          required: true
-          schema: { type: string }
-        - name: kind
-          in: query
-          required: true
-          schema:
-            type: string
-            enum: [file, dir]
-      requestBody:
-        required: true
-        content:
-          application/octet-stream:
-            schema: { type: string, format: binary }
-          application/x-tar:
-            schema: { type: string, format: binary }
-      responses:
-        "204":
-          description: Uploaded
-  /nest/{id}/fs/read:
-    get:
-      tags: [Files]
-      summary: Download a file or directory from /home/tyto
-      parameters:
-        - $ref: "#/components/parameters/NestID"
-        - name: path
-          in: query
-          required: true
-          schema: { type: string }
-      responses:
-        "200":
-          description: File bytes or tar archive
-          headers:
-            X-Tyto-FS-Kind:
-              schema:
-                type: string
-                enum: [file, dir]
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
   /nest/{id}/previews:
     post:
       tags: [Previews]
       summary: Create a preview
+      description: >
+        Exposes a dev server running inside the nest via an authenticated
+        (or, with public=true, unauthenticated) URL. The dev server must
+        bind to 0.0.0.0 inside the nest.
+      operationId: createPreview
       parameters:
-        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/nestId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreatePreviewRequest"
+              type: object
+              required: [port]
+              properties:
+                port:
+                  type: integer
+                  minimum: 1024
+                  maximum: 65535
+                auth:
+                  type: string
+                  enum: [private, public]
+                  description: Mutually exclusive with public; private forces public=false
+                name:
+                  type: string
+                  maxLength: 80
+                public:
+                  type: boolean
       responses:
         "201":
-          description: Preview
+          description: Preview created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CreatePreviewResponse"
+                $ref: "#/components/schemas/PreviewCreateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     get:
       tags: [Previews]
       summary: List previews for a nest
+      description: Returns only non-revoked previews.
+      operationId: listPreviews
       parameters:
-        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/nestId"
       responses:
         "200":
           description: Previews
@@ -449,162 +1553,126 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Preview"
+                  $ref: "#/components/schemas/PreviewView"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /previews/{id}:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema: { type: string }
     get:
       tags: [Previews]
-      summary: Inspect a preview
+      summary: Get a preview
+      operationId: getPreview
+      parameters:
+        - $ref: "#/components/parameters/previewId"
       responses:
         "200":
           description: Preview
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Preview"
+                $ref: "#/components/schemas/PreviewView"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
       tags: [Previews]
       summary: Revoke a preview
+      operationId: revokePreview
+      parameters:
+        - $ref: "#/components/parameters/previewId"
       responses:
         "204":
-          description: Revoked
+          description: Preview revoked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /preview/{id}/_exchange:
     get:
       tags: [Previews]
+      summary: Exchange a one-shot preview token for a session cookie
+      description: >
+        Unauthenticated (uses a one-shot `?t=` token, not the bearer API
+        key). Sets an HttpOnly session cookie and redirects into the
+        preview proxy.
+      operationId: exchangePreviewToken
       security: []
-      summary: Exchange a preview token for a browser session
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
+        - $ref: "#/components/parameters/previewId"
         - name: t
           in: query
           required: true
-          schema: { type: string }
-        - name: next
-          in: query
-          required: false
-          schema: { type: string }
+          schema:
+            type: string
       responses:
         "303":
-          description: Browser session started
+          description: Redirect into the preview with a session cookie set
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "410":
+          description: Exchange token invalid/expired, or preview no longer active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /preview/{id}/{path}:
     get:
       tags: [Previews]
+      summary: Proxy a request into a preview
+      description: >
+        Reverse-proxies (including WebSocket upgrades) to the dev server
+        inside the nest. Unauthenticated by bearer key; private previews
+        are authorized via the HttpOnly session cookie set by the exchange
+        endpoint.
+      operationId: proxyPreview
       security: []
-      summary: Proxy browser traffic to a preview
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
+        - $ref: "#/components/parameters/previewId"
         - name: path
           in: path
           required: true
-          schema: { type: string }
+          schema:
+            type: string
       responses:
         "200":
-          description: Proxied response from the previewed service
-  /nest/{id}/snapshots:
-    post:
-      tags: [Snapshots]
-      summary: Create a snapshot
-      parameters:
-        - $ref: "#/components/parameters/NestID"
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateSnapshotRequest"
-      responses:
-        "200":
-          description: Snapshot
+          description: Proxied response from the dev server
+        "401":
+          description: Private preview auth failed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Snapshot"
-    get:
-      tags: [Snapshots]
-      summary: List snapshots
-      parameters:
-        - $ref: "#/components/parameters/NestID"
-      responses:
-        "200":
-          description: Snapshots
+                $ref: "#/components/schemas/Error"
+        "410":
+          description: Preview revoked/expired, or its nest no longer exists
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SnapshotList"
-  /nest/{id}/restore:
-    post:
-      tags: [Snapshots]
-      summary: Restore a stopped nest from a snapshot
-      parameters:
-        - $ref: "#/components/parameters/NestID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RestoreNestRequest"
-      responses:
-        "200":
-          description: Restore result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RestoreNestResponse"
-  /nest/{id}/fork:
-    post:
-      tags: [Snapshots]
-      summary: Fork a nest into a new running nest
-      parameters:
-        - $ref: "#/components/parameters/NestID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ForkNestRequest"
-      responses:
-        "200":
-          description: Fork result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ForkNestResponse"
-  /snapshots/{snapshot_id}:
-    delete:
-      tags: [Snapshots]
-      summary: Delete a snapshot
-      parameters:
-        - name: snapshot_id
-          in: path
-          required: true
-          schema: { type: string }
-        - name: dry_run
-          in: query
-          required: false
-          schema: { type: boolean }
-      responses:
-        "200":
-          description: Delete result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DeleteSnapshotResponse"
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
   /nest/{id}/holds:
     get:
       tags: [Holds]
-      summary: List keepalive holds
+      summary: List keepalive holds for a nest
+      operationId: listHolds
       parameters:
-        - $ref: "#/components/parameters/NestID"
+        - $ref: "#/components/parameters/nestId"
       responses:
         "200":
           description: Holds
@@ -614,380 +1682,218 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/KeepaliveHold"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /nest/{id}/holds/{hold_name}:
     put:
       tags: [Holds]
       summary: Create or replace a keepalive hold
+      description: Holds keep a nest awake during long-running work. Name must match `^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$`.
+      operationId: upsertHold
       parameters:
-        - $ref: "#/components/parameters/NestID"
-        - $ref: "#/components/parameters/HoldName"
+        - $ref: "#/components/parameters/nestId"
+        - $ref: "#/components/parameters/holdName"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/HoldRequest"
+              type: object
+              required: [ttl]
+              properties:
+                ttl:
+                  type: string
+                  description: A positive Go duration string, e.g. "30m"
+                reason:
+                  type: string
+                source:
+                  type: string
       responses:
         "200":
-          description: Hold
+          description: Hold created or replaced
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/KeepaliveHold"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     delete:
       tags: [Holds]
       summary: Delete a keepalive hold
+      operationId: deleteHold
       parameters:
-        - $ref: "#/components/parameters/NestID"
-        - $ref: "#/components/parameters/HoldName"
+        - $ref: "#/components/parameters/nestId"
+        - $ref: "#/components/parameters/holdName"
       responses:
         "204":
-          description: Deleted
+          description: Hold deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /nest/{id}/holds/{hold_name}/heartbeat:
     post:
       tags: [Holds]
       summary: Extend a keepalive hold
+      operationId: heartbeatHold
       parameters:
-        - $ref: "#/components/parameters/NestID"
-        - $ref: "#/components/parameters/HoldName"
+        - $ref: "#/components/parameters/nestId"
+        - $ref: "#/components/parameters/holdName"
       requestBody:
-        required: false
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/HoldRequest"
+              type: object
+              properties:
+                ttl:
+                  type: string
+                  description: Defaults to 30m
       responses:
         "200":
-          description: Hold
+          description: Hold heartbeat recorded
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/KeepaliveHold"
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: tyto API key
-  parameters:
-    NestID:
-      name: id
-      in: path
-      required: true
-      schema: { type: string }
-    SessionID:
-      name: session_id
-      in: path
-      required: true
-      schema: { type: integer }
-    HoldName:
-      name: hold_name
-      in: path
-      required: true
-      schema:
-        type: string
-        pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$"
-  responses:
-    Error:
-      description: Error response
-      content:
-        application/json:
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Nest or hold not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /nest/{id}/fs/write:
+    put:
+      tags: [Filesystem]
+      summary: Write a file or directory into a nest
+      description: >
+        Body is raw file bytes for kind=file, or a tar stream for kind=dir.
+        Requires the nest to be running.
+      operationId: fsWrite
+      parameters:
+        - $ref: "#/components/parameters/nestId"
+        - name: path
+          in: query
+          required: true
           schema:
-            $ref: "#/components/schemas/Error"
-  schemas:
-    OK:
-      type: object
-      properties:
-        ok: { type: boolean }
-    Error:
-      type: object
-      properties:
-        error: { type: string }
-        message: { type: string }
-    User:
-      type: object
-      required: [id, email]
-      properties:
-        id: { type: string }
-        email: { type: string, format: email }
-    Balance:
-      type: object
-      required: [balance_cents]
-      properties:
-        balance_cents:
-          type: integer
-          description: Remaining prepaid credit balance in cents
-          example: 1000
-    Invoice:
-      type: object
-      required: [id, status, amount_cents, currency]
-      properties:
-        id: { type: string }
-        status:
-          type: string
-          enum: [draft, finalized, voided]
-        amount_cents:
-          type: integer
-          description: Invoice total in cents
-          example: 450
-        currency:
-          type: string
-          example: USD
-        period_start: { type: string, format: date-time }
-        period_end: { type: string, format: date-time }
-        url:
-          type: string
-          format: uri
-          description: Hosted invoice URL for download or payment
-    AuthStartRequest:
-      type: object
-      properties:
-        client: { type: string, default: tyto-cli }
-        hostname: { type: string }
-    AuthStartResponse:
-      type: object
-      required: [login_url, device_code, expires_in]
-      properties:
-        login_url: { type: string, format: uri }
-        device_code: { type: string }
-        expires_in: { type: integer }
-    AuthPollRequest:
-      type: object
-      required: [device_code]
-      properties:
-        device_code: { type: string }
-    AuthPollResponse:
-      type: object
-      required: [status]
-      properties:
-        status:
-          type: string
-          enum: [pending, approved]
-        api_key: { type: string }
-        user:
-          $ref: "#/components/schemas/User"
-    CreateNestRequest:
-      type: object
-      required: [name]
-      properties:
-        name:
-          type: string
-          pattern: "^[a-z][a-z0-9-]{0,62}$"
-        template:
-          type: string
-          enum:
-            [
-              ubuntu-24-dev,
-              ubuntu-dev,
-              ubuntu-noble-langs,
-              ubuntu-2604-v01,
-              ubuntu-latest-twe-v01,
-            ]
-          default: ubuntu-24-dev
-        repo_url:
-          type: string
-          format: uri
-    Nest:
-      type: object
-      required: [id, user_id, name, template, status, created_at, updated_at]
-      properties:
-        id: { type: string }
-        user_id: { type: string }
-        name: { type: string }
-        template: { type: string }
-        repo_url: { type: string }
-        status:
-          type: string
-          enum:
-            [creating, running, stopped, suspended, deleting, deleted, error]
-        error_message: { type: string }
-        sleep_source: { type: string }
-        lifecycle_error: { type: string }
-        last_activity_at: { type: string, format: date-time }
-        last_wake_at: { type: string, format: date-time }
-        created_at: { type: string, format: date-time }
-        updated_at: { type: string, format: date-time }
-    WakeRequest:
-      type: object
-      properties:
-        reason: { type: string }
-    WakeResponse:
-      type: object
-      properties:
-        nest_id: { type: string }
-        from: { type: string }
-        to: { type: string }
-        path: { type: string }
-        reason: { type: string }
-        duration_ms: { type: integer, format: int64 }
-    NestLifecycle:
-      type: object
-      properties:
-        nest_id: { type: string }
-        status: { type: string }
-        sleep_source: { type: string }
-        last_activity_at: { type: string, format: date-time }
-        last_wake_at: { type: string, format: date-time }
-        lifecycle_error: { type: string }
-    CreateSessionRequest:
-      type: object
-      required: [tty, argv]
-      properties:
-        tty: { type: boolean }
-        argv:
-          type: array
-          items: { type: string }
-        cwd: { type: string }
-        cols: { type: integer }
-        rows: { type: integer }
-        env:
-          type: object
-          additionalProperties: { type: string }
-    Session:
-      type: object
-      properties:
-        id: { type: integer }
-        nest_id: { type: string }
-        tty: { type: boolean }
-        command: { type: string }
-        cwd: { type: string }
-        status:
-          type: string
-          enum: [running, exited, killed, lost]
-        attached: { type: integer }
-        started_at: { type: string, format: date-time }
-        last_activity_at: { type: string, format: date-time }
-        exit_code: { type: integer }
-        ended_at: { type: string, format: date-time }
-        attach_url: { type: string }
-    KillSessionRequest:
-      type: object
-      properties:
-        signal: { type: string, default: TERM }
-        grace_ms: { type: integer, default: 5000 }
-    CreatePreviewRequest:
-      type: object
-      required: [port]
-      properties:
-        port: { type: integer, minimum: 1024, maximum: 65535 }
-        auth:
-          type: string
-          enum: [private, public]
-        public: { type: boolean }
-        name: { type: string }
-    CreatePreviewResponse:
-      allOf:
-        - $ref: "#/components/schemas/Preview"
-        - type: object
-          properties:
-            expires_in: { type: integer }
-    Preview:
-      type: object
-      properties:
-        id: { type: string }
-        nest_id: { type: string }
-        name: { type: string }
-        port: { type: integer }
-        auth:
-          type: string
-          enum: [private, public]
-        public: { type: boolean }
-        url: { type: string, format: uri }
-        path_url: { type: string, format: uri }
-        created_at: { type: string, format: date-time }
-        expires_at: { type: string, format: date-time }
-        revoked_at: { type: string, format: date-time }
-    CreateSnapshotRequest:
-      type: object
-      properties:
-        name: { type: string }
-        description: { type: string }
-        stop_if_running: { type: boolean }
-    Snapshot:
-      type: object
-      properties:
-        id: { type: string }
-        nest_id: { type: string }
-        user_id: { type: string }
-        name: { type: string }
-        description: { type: string }
-        state: { type: string }
-        template_id: { type: string }
-        logical_dirty_bytes: { type: integer, format: int64 }
-        apparent_bytes: { type: integer, format: int64 }
-        physical_bytes: { type: integer, format: int64 }
-        reclaimable_bytes: { type: integer, format: int64 }
-        reclaimable_status: { type: string }
-        index_status: { type: string }
-        created_at: { type: string, format: date-time }
-    SnapshotList:
-      type: object
-      properties:
-        nest_id: { type: string }
-        snapshots:
-          type: array
-          items:
-            $ref: "#/components/schemas/Snapshot"
-    RestoreNestRequest:
-      type: object
-      required: [snapshot_id]
-      properties:
-        snapshot_id: { type: string }
-    RestoreNestResponse:
-      type: object
-      properties:
-        nest_id: { type: string }
-        restored_from: { type: string }
-        status: { type: string }
-        message: { type: string }
-    ForkNestRequest:
-      type: object
-      required: [name]
-      properties:
-        name: { type: string }
-        stop_if_running: { type: boolean }
-        restart_source: { type: boolean }
-    ForkNestResponse:
-      type: object
-      properties:
-        id: { type: string }
-        name: { type: string }
-        source_nest_id: { type: string }
-        status: { type: string }
-        template_id: { type: string }
-        source_restarted: { type: boolean }
-        source_restart_error: { type: string }
-        storage:
-          type: object
-          properties:
-            copy_method: { type: string }
-            physical_bytes_added_now: { type: integer, format: int64 }
-    DeleteSnapshotResponse:
-      type: object
-      properties:
-        snapshot_id: { type: string }
-        can_delete: { type: boolean }
-        would_free_bytes: { type: integer, format: int64 }
-        would_remain_shared_bytes: { type: integer, format: int64 }
-        reclaimable_status: { type: string }
-        blocked_by:
-          type: array
-          items: { type: string }
-        deleted: { type: boolean }
-    HoldRequest:
-      type: object
-      properties:
-        ttl: { type: string, example: 30m }
-        reason: { type: string }
-        source: { type: string }
-    KeepaliveHold:
-      type: object
-      properties:
-        nest_id: { type: string }
-        name: { type: string }
-        source: { type: string }
-        reason: { type: string }
-        expires_at: { type: string, format: date-time }
-        last_heartbeat_at: { type: string, format: date-time }
-        created_at: { type: string, format: date-time }
-        updated_at: { type: string, format: date-time }
+            type: string
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [file, dir]
+            default: file
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          application/x-tar:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "204":
+          description: Write succeeded
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /nest/{id}/fs/read:
+    get:
+      tags: [Filesystem]
+      summary: Read a file or directory from a nest
+      description: >
+        Returns raw bytes for a file, or a tar stream for a directory
+        (indicated by the X-Tyto-FS-Kind response header). Requires the
+        nest to be running.
+      operationId: fsRead
+      parameters:
+        - $ref: "#/components/parameters/nestId"
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: File or directory contents
+          headers:
+            X-Tyto-FS-Kind:
+              description: file or dir
+              schema:
+                type: string
+                enum: [file, dir]
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            application/x-tar:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /v1/.well-known/jwks.json:
+    get:
+      tags: [Auth]
+      summary: Public JWKS for grant verification
+      description: Also reachable at /.well-known/jwks.json.
+      operationId: getGrantJWKS
+      security: []
+      responses:
+        "200":
+          description: JSON Web Key Set
+          content:
+            application/json:
+              schema:
+                type: object
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"

@@ -7,10 +7,20 @@ description: Check your credit balance and invoice history
 
 `GET /me/billing/balance` returns your remaining prepaid credit balance in cents. If you don't have a billing account yet, this returns `{"balance_cents": 0}` rather than an error.
 
-```bash
+<CodeGroup>
+```shell API
 curl -s https://api.tyto.run/me/billing/balance \
   -H "Authorization: Bearer $TYTO_API_KEY"
 ```
+
+```ts TypeScript
+const balance = await tyto.billing.getBalance();
+```
+
+```python Python
+balance = tyto.billing.get_balance()
+```
+</CodeGroup>
 
 ```json
 { "balance_cents": 1000 }
@@ -20,9 +30,19 @@ curl -s https://api.tyto.run/me/billing/balance \
 
 `GET /me/billing/invoices` returns your invoice history, oldest details first. It returns an empty array if you have no billing account or no invoices yet.
 
-```bash
+<CodeGroup>
+```shell API
 curl -s https://api.tyto.run/me/billing/invoices \
   -H "Authorization: Bearer $TYTO_API_KEY"
 ```
+
+```ts TypeScript
+const invoices = await tyto.billing.listInvoices();
+```
+
+```python Python
+invoices = tyto.billing.list_invoices()
+```
+</CodeGroup>
 
 Each invoice has a `status` of `draft`, `finalized`, or `voided`, an `amount_cents` and `currency`, a `period_start`/`period_end`, and a hosted `url` for viewing or paying it.

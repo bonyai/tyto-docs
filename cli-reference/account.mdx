@@ -1,0 +1,92 @@
+---
+title: Account
+description: login, logout, me
+---
+
+## `tyto login`
+
+Authenticate the CLI against a Tyto Control Plane. The default flow opens
+a browser to a Supabase GitHub OAuth page and polls the Control Plane
+until login is approved; the resulting API key is written to
+`~/.config/tyto/config.json` (mode `0600`).
+
+Flags:
+- `--url string` — Control Plane base URL (default `https://api.tyto.run`)
+- `--api-key string` — skip OAuth; just save this key to config
+- `--open` (default `true`) — open the login URL in a browser automatically
+- `--poll-interval-ms int` (default `2000`) — how often to poll for approval
+
+Log in via browser:
+
+<CodeGroup>
+```shell Shell
+tyto login
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/auth/cli/start | tee /tmp/tyto-login.json
+open "$(jq -r .login_url /tmp/tyto-login.json)"
+
+# poll until approved
+curl -s -X POST https://api.tyto.run/auth/cli/poll \
+  -H "Content-Type: application/json" \
+  -d "{\"device_code\": \"$(jq -r .device_code /tmp/tyto-login.json)\"}"
+```
+</CodeGroup>
+
+Log in against a self-hosted Control Plane:
+
+<CodeGroup>
+```shell Shell
+tyto login --url https://cp.example.com
+```
+</CodeGroup>
+
+Save a pre-existing API key directly (no browser round trip):
+
+<CodeGroup>
+```shell Shell
+tyto login --api-key tyto_xxx
+```
+</CodeGroup>
+
+## `tyto logout`
+
+Remove saved CLI credentials.
+
+<CodeGroup>
+```shell Shell
+tyto logout
+```
+</CodeGroup>
+
+## `tyto me`
+
+Print the authenticated user.
+
+<CodeGroup>
+```shell Shell
+tyto me
+```
+
+```shell API
+curl -s https://api.tyto.run/me \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+const user = await tyto.me();
+```
+
+```python Python
+user = tyto.me()
+```
+</CodeGroup>
+
+Show the current user as JSON:
+
+<CodeGroup>
+```shell Shell
+tyto me --json
+```
+</CodeGroup>

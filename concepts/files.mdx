@@ -13,6 +13,11 @@ Every nest exposes a simple filesystem API rooted at `/home/tyto`.
 Both SDKs wrap this as a single `put`/`get` call that picks the right `kind` and handles tar packing/unpacking for you:
 
 <CodeGroup>
+```shell Shell
+tyto put ./hello.txt my-nest:hello.txt
+tyto get my-nest:hello.txt ./hello.downloaded.txt
+```
+
 ```ts TypeScript
 await nest.put("./hello.txt", "hello.txt");
 await nest.get("hello.txt", "./hello.downloaded.txt");
@@ -28,4 +33,7 @@ For lower-level control, both SDKs also expose the raw calls under `nest.fs`.
 
 ## Related
 
-<Card title="Transfer files" icon="file" href="/guides/transfer-files" />
+<CardGroup cols={2}>
+  <Card title="Transfer files" icon="file" href="/guides/transfer-files" />
+  <Card title="Data CLI reference" icon="database" href="/cli-reference/data" />
+</CardGroup>

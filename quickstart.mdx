@@ -8,7 +8,11 @@ description: Get started with Tyto
 Start a CLI browser login. This opens a browser tab for you to approve, and returns an API key once approved.
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto login
+```
+
+```shell API
 curl -s -X POST https://api.tyto.run/auth/cli/start | tee /tmp/tyto-login.json
 open "$(jq -r .login_url /tmp/tyto-login.json)"
 
@@ -40,8 +44,12 @@ pip install tyto.run
 ## Create a nest
 
 <CodeGroup>
-```bash curl
-curl -s -X POST https://api.tyto.run/nest/ \
+```shell Shell
+tyto create my-nest
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest \
   -H "Authorization: Bearer $TYTO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name": "my-nest", "template": "ubuntu-24-dev"}'
@@ -67,7 +75,11 @@ print(nest.id, nest.status)
 ## Run a command
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto exec my-nest -- echo hi
+```
+
+```shell API
 curl -s -X POST https://api.tyto.run/nest/$NEST_ID/sessions \
   -H "Authorization: Bearer $TYTO_API_KEY" \
   -H "Content-Type: application/json" \
@@ -76,7 +88,7 @@ curl -s -X POST https://api.tyto.run/nest/$NEST_ID/sessions \
 
 ```ts TypeScript
 const session = await nest.createSession({ tty: false, argv: ["bash", "-lc", "echo hi"] });
-const ws = session.attach();
+const ws = await session.attach();
 ws.on("message", (data) => console.log(String(data)));
 ```
 
@@ -91,7 +103,11 @@ with session.attach() as ws:
 ## Clean up
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto delete my-nest --yes
+```
+
+```shell API
 curl -s -X DELETE https://api.tyto.run/nest/$NEST_ID \
   -H "Authorization: Bearer $TYTO_API_KEY"
 ```
@@ -108,6 +124,9 @@ nest.delete()
 ## Next steps
 
 <CardGroup cols={2}>
+  <Card title="CLI Reference" icon="terminal" href="/cli-reference/overview">
+    Install the tyto CLI and browse every command.
+  </Card>
   <Card title="Core Concepts" icon="cube" href="/concepts/nests">
     Learn the nest lifecycle, sessions, files, previews, snapshots, and holds.
   </Card>

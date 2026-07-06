@@ -1,0 +1,87 @@
+---
+title: Overview
+description: Install the tyto CLI and learn its global flags and short forms
+---
+
+`tyto` is the command-line client for Tyto — hosted, isolated Linux nests
+(Firecracker microVMs) for everyday development. Log in, create a nest,
+open an interactive shell, and work on code that persists across
+stop/start cycles.
+
+<CodeGroup>
+```shell Shell
+tyto login
+tyto create web --repo owner/repo
+tyto console web
+```
+</CodeGroup>
+
+## Installation
+
+<CodeGroup>
+```shell Shell
+curl -fsSL https://get.tyto.run/install.sh | sh
+```
+</CodeGroup>
+
+Every command supports `--help`, and the binary responds to `--version`.
+
+## Global flags
+
+These apply to every subcommand:
+
+| Flag | Default | Description |
+|---|---|---|
+| `--api-url string` | (from config) | Control Plane base URL (overrides config) |
+| `--api-key string` | (from config) | API key (overrides config) |
+| `--config string` | `~/.config/tyto/config.json` | Config file path |
+| `--json` | `false` | Machine-readable JSON output where supported |
+| `-v, --verbose` | `false` | Verbose logging to stderr |
+
+Config is written to `$XDG_CONFIG_HOME/tyto/config.json` (or
+`~/.config/tyto/config.json`) with mode `0600` and holds the API URL, API
+key, and authenticated user (id, email).
+
+## Short forms
+
+Several commands and flags have shorter aliases for faster typing:
+
+| Full | Short |
+|---|---|
+| `tyto list` | `tyto ls` |
+| `tyto delete` | `tyto rm` |
+| `tyto session` | `tyto s` |
+| `tyto snapshot` | `tyto snap` |
+| `tyto snapshot delete` | `tyto snap rm` |
+| `--verbose` | `-v` |
+| `--yes` (delete commands) | `-y` |
+| `--tty` (`exec`) | `-t` |
+| `--env` (`exec`) | `-e` |
+
+## Exit codes and scripting
+
+Pass `--json` to any command that supports it for machine-readable
+output. Combine with `--no-console` on `create` and non-interactive flags
+elsewhere to use `tyto` safely in scripts and CI.
+
+## Command groups
+
+Commands are grouped the same way `tyto --help` groups them:
+
+<CardGroup cols={2}>
+  <Card title="Everyday" icon="bolt" href="/cli-reference/everyday">
+    create, list, console, exec, preview
+  </Card>
+  <Card title="Lifecycle" icon="rotate" href="/cli-reference/lifecycle">
+    start, stop, wake, inspect, restore, fork, delete
+  </Card>
+  <Card title="Sessions" icon="terminal" href="/cli-reference/sessions">
+    session, attach
+  </Card>
+  <Card title="Data" icon="database" href="/cli-reference/data">
+    snapshot, put, get, hold
+  </Card>
+  <Card title="Account" icon="user" href="/cli-reference/account">
+    login, logout, me
+  </Card>
+</CardGroup>

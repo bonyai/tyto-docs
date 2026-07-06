@@ -37,5 +37,5 @@ description: Tools exposed by the Tyto MCP server
 | `hold_delete` | Delete a keepalive hold |
 
 <Note>
-The Tyto WebSocket endpoints (`console`, `exec`, session `attach`) are not exposed as tools. `nest_run` provides run-and-return execution instead: it runs your command in a managed session, redirects output and exit code to files, then reads them back over the filesystem API. This is reliable for both short and long-running commands, unlike a live attach stream in a tool-call context. It returns the combined stdout+stderr followed by an `[exit code: N]` line.
+Tyto's grant-based PTY endpoints (`console/prepare`, `exec/tty/prepare`, session `attach/prepare`) are not exposed as tools, since each returns a signed grant plus a `wss_url` meant for an interactive WebSocket connection, not a single request/response tool call. `nest_run` provides run-and-return execution instead: it runs your command in a managed session, redirects output and exit code to files, then reads them back over the filesystem API. This is reliable for both short and long-running commands, unlike a live attach stream in a tool-call context. It returns the combined stdout+stderr followed by an `[exit code: N]` line.
 </Note>

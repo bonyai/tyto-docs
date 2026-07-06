@@ -3,35 +3,86 @@ title: Sessions
 description: Run commands inside a nest
 ---
 
-There are two ways to execute commands in a nest: **managed sessions**, and raw WebSocket streams.
+There are two ways to execute commands in a nest: **managed sessions**, and **one-off/interactive PTYs** using a grant-based prepare flow.
 
 ## Managed sessions
 
 `POST /nest/{id}/sessions` starts a command and tracks it as a first-class object you can list, inspect, attach to, and kill:
 
-```json
-{ "tty": false, "argv": ["bash", "-lc", "echo hi"], "cwd": "/home/tyto", "env": { "FOO": "bar" } }
+<CodeGroup>
+```shell Shell
+tyto exec my-nest -- bash -lc 'echo hi'
 ```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/sessions \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tty": false, "argv": ["bash", "-lc", "echo hi"], "cwd": "/home/tyto", "env": {"FOO": "bar"}}'
+```
+
+```ts TypeScript
+const session = await nest.createSession({
+  tty: false,
+  argv: ["bash", "-lc", "echo hi"],
+  cwd: "/home/tyto",
+  env: { FOO: "bar" },
+});
+```
+
+```python Python
+session = nest.create_session(
+    argv=["bash", "-lc", "echo hi"],
+    tty=False,
+    cwd="/home/tyto",
+    env={"FOO": "bar"},
+)
+```
+</CodeGroup>
 
 A session has a `status` of `running`, `exited`, `killed`, or `lost`, plus `exit_code`, `started_at`/`ended_at`, and `attached` (how many clients are currently streaming its I/O).
 
 - `GET /nest/{id}/sessions` lists sessions (`all=true` includes finished ones, `history=true` includes historical records).
-- `GET /nest/{id}/sessions/{session_id}/attach` opens a WebSocket streaming the session's I/O — multiple clients can attach to the same session.
+- `POST /nest/{id}/sessions/{session_id}/attach/prepare` mints a short-lived signed `grant` and a `wss_url` — connect to `wss_url` with the grant to stream the session's I/O. Multiple clients can attach to the same session this way.
 - `POST /nest/{id}/sessions/{session_id}/kill` sends a signal (default `TERM`) and waits up to `grace_ms` (default `5000`) before force-killing.
 
-## Raw WebSocket streams
+## Interactive PTYs and one-off exec
 
-For interactive or ad hoc use, two endpoints skip session bookkeeping entirely:
+For interactive or ad hoc use, two endpoints skip session bookkeeping and instead return a grant for connecting directly to a PTY:
 
-- `GET /nest/{id}/console` — an interactive shell WebSocket (like SSH).
-- `GET /nest/{id}/exec` — a single command WebSocket.
+- `POST /nest/{id}/console/prepare` — prepares an interactive shell PTY (used by `tyto console`).
+- `POST /nest/{id}/exec/tty/prepare` — prepares a one-off TTY command (used by `tyto exec --tty`).
 
-These aren't tracked as sessions and won't show up in `GET /nest/{id}/sessions`.
+Both return a `PTYPrepareResponse`: a signed short-lived `grant`, the `wss_url` to open a WebSocket connection to, and a `session_id`. Connect to `wss_url` and present the `grant` to start streaming.
+
+<CodeGroup>
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/console/prepare \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"cols": 80, "rows": 24}'
+# => { "grant": "...", "wss_url": "wss://...", "session_id": 42, ... }
+```
+
+```ts TypeScript
+const ws = await nest.console();
+```
+
+```python Python
+with nest.console() as ws:
+    ...
+```
+</CodeGroup>
+
+These PTYs aren't tracked as managed sessions and won't show up in `GET /nest/{id}/sessions`.
 
 <Note>
-The MCP server does not expose these WebSocket endpoints as tools, since a long-lived stream doesn't fit a request/response tool call well. Instead it provides `nest_run`, which runs a command in a managed session, redirects output and exit code to files, and reads them back — see [MCP Tools](/mcp/tools).
+The MCP server does not expose the prepare/grant PTY endpoints as tools, since a long-lived stream doesn't fit a request/response tool call well. Instead it provides `nest_run`, which runs a command in a managed session, redirects output and exit code to files, and reads them back — see [MCP Tools](/mcp/tools).
 </Note>
 
 ## Related
 
-<Card title="Run a command" icon="terminal" href="/guides/run-a-command" />
+<CardGroup cols={2}>
+  <Card title="Run a command" icon="terminal" href="/guides/run-a-command" />
+  <Card title="Sessions CLI reference" icon="terminal" href="/cli-reference/sessions" />
+</CardGroup>

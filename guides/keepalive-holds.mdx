@@ -8,7 +8,11 @@ Nests can be stopped automatically after a period of inactivity. If you have a l
 ## Put a hold
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto hold create my-nest ci --ttl 30m
+```
+
+```shell API
 curl -s -X PUT https://api.tyto.run/nest/$NEST_ID/holds/ci \
   -H "Authorization: Bearer $TYTO_API_KEY" \
   -H "Content-Type: application/json" \
@@ -29,7 +33,11 @@ nest.holds.put("ci", ttl="30m", reason="CI job")
 Call this periodically — well before `expires_at` — for as long as your job is still running:
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto hold heartbeat my-nest ci --ttl 30m
+```
+
+```shell API
 curl -s -X POST https://api.tyto.run/nest/$NEST_ID/holds/ci/heartbeat \
   -H "Authorization: Bearer $TYTO_API_KEY" \
   -H "Content-Type: application/json" \
@@ -48,7 +56,11 @@ nest.holds.heartbeat("ci", ttl="30m")
 ## Release it
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto hold delete my-nest ci
+```
+
+```shell API
 curl -s -X DELETE https://api.tyto.run/nest/$NEST_ID/holds/ci \
   -H "Authorization: Bearer $TYTO_API_KEY"
 ```

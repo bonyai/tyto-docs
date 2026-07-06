@@ -19,9 +19,15 @@ This is the flow the `tyto` CLI and other device-style clients use to obtain an 
   <Step title="Start a login">
     `POST /auth/cli/start` returns a `login_url`, a `device_code`, and how long the code is valid for (`expires_in` seconds).
 
-    ```bash
+    <CodeGroup>
+    ```shell Shell
+    tyto login
+    ```
+
+    ```shell API
     curl -s -X POST https://api.tyto.run/auth/cli/start
     ```
+    </CodeGroup>
 
     ```json
     {
@@ -37,7 +43,7 @@ This is the flow the `tyto` CLI and other device-style clients use to obtain an 
   <Step title="Poll for the API key">
     `POST /auth/cli/poll` with the `device_code` returns `status: "pending"` until approval, then `status: "approved"` along with `api_key` and the signed-in `user`. The device code expires — a `410` means you need to start over.
 
-    ```bash
+    ```shell
     curl -s -X POST https://api.tyto.run/auth/cli/poll \
       -H "Content-Type: application/json" \
       -d '{"device_code": "..."}'

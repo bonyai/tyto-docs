@@ -1,0 +1,117 @@
+---
+title: Sessions
+description: session (list, attach, kill), attach
+---
+
+Managed sessions are shells or commands running inside a nest that you
+can list, re-attach to, and kill independently of your local terminal
+connection.
+
+## `tyto session` (aliases: `sessions`, `s`)
+
+List attachable sessions:
+
+<CodeGroup>
+```shell Shell
+tyto session list web
+# or the short form:
+tyto s list web
+```
+
+```shell API
+curl -s https://api.tyto.run/nest/$NEST_ID/sessions \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+const sessions = await nest.listSessions();
+```
+
+```python Python
+sessions = nest.list_sessions()
+```
+</CodeGroup>
+
+List all sessions, including exited/killed/lost:
+
+<CodeGroup>
+```shell Shell
+tyto s list web --all
+```
+
+```shell API
+curl -s "https://api.tyto.run/nest/$NEST_ID/sessions?all=true" \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+</CodeGroup>
+
+List sessions as a plain table (skip the interactive picker):
+
+<CodeGroup>
+```shell Shell
+tyto s list web --plain
+```
+</CodeGroup>
+
+Attach to a running session:
+
+<CodeGroup>
+```shell Shell
+tyto s attach web 42
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/sessions/42/attach/prepare \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+# returns { grant, wss_url, session_id, ... } — connect to wss_url with the grant
+```
+
+```ts TypeScript
+const ws = await session.attach();
+```
+
+```python Python
+with session.attach() as ws:
+    ...
+```
+</CodeGroup>
+
+Kill a managed session:
+
+<CodeGroup>
+```shell Shell
+tyto s kill web 42 --signal TERM
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/sessions/42/kill \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"signal": "TERM"}'
+```
+
+```ts TypeScript
+await session.kill({ signal: "TERM" });
+```
+
+```python Python
+session.kill(signal="TERM")
+```
+</CodeGroup>
+
+In the interactive picker: arrow keys navigate, Tab cycles, Enter
+attaches, `k` kills the selected session, `q`/Esc cancels.
+
+## `tyto attach <nest> <id>`
+
+Top-level alias for `tyto session attach`.
+
+<CodeGroup>
+```shell Shell
+tyto attach web 42
+```
+</CodeGroup>
+
+Use Ctrl+\ to detach from an attached session without killing it. Sessions
+only survive while the nest VM is running; use `tyto console <nest>` to
+start a new attachable shell.

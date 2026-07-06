@@ -6,7 +6,11 @@ description: Save nest disk state and branch off new nests from it
 ## Create a snapshot
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto snapshot create my-nest --name v1 --stop-if-running
+```
+
+```shell API
 curl -s -X POST https://api.tyto.run/nest/$NEST_ID/snapshots \
   -H "Authorization: Bearer $TYTO_API_KEY" \
   -H "Content-Type: application/json" \
@@ -27,7 +31,11 @@ snap = nest.create_snapshot(name="v1")
 Forking copies a snapshot's disk state into a brand-new, running nest — the source nest is left alone unless you set `restart_source`.
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto fork my-nest --name my-fork --stop-if-running
+```
+
+```shell API
 curl -s -X POST https://api.tyto.run/nest/$NEST_ID/fork \
   -H "Authorization: Bearer $TYTO_API_KEY" \
   -H "Content-Type: application/json" \
@@ -48,7 +56,11 @@ fork = nest.fork(name="my-fork")
 The target nest must be **stopped** before restoring.
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto restore my-nest --snapshot snap_123
+```
+
+```shell API
 curl -s -X POST https://api.tyto.run/nest/$NEST_ID/restore \
   -H "Authorization: Bearer $TYTO_API_KEY" \
   -H "Content-Type: application/json" \
@@ -65,7 +77,12 @@ curl -s -X POST https://api.tyto.run/nest/$NEST_ID/restore \
 Use `dry_run` first to see what deleting would actually free, and whether anything (like a dependent fork) blocks it:
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto snap delete snap_123 --dry-run
+tyto snap delete snap_123 --yes
+```
+
+```shell API
 curl -s -X DELETE "https://api.tyto.run/snapshots/$SNAPSHOT_ID?dry_run=true" \
   -H "Authorization: Bearer $TYTO_API_KEY"
 

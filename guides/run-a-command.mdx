@@ -8,8 +8,12 @@ This guide creates a nest, runs a command in a managed session, and streams its 
 ## 1. Create a nest
 
 <CodeGroup>
-```bash curl
-curl -s -X POST https://api.tyto.run/nest/ \
+```shell Shell
+tyto create my-nest
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest \
   -H "Authorization: Bearer $TYTO_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name": "my-nest", "template": "ubuntu-24-dev"}'
@@ -33,7 +37,11 @@ nest = tyto.create(name="my-nest", template="ubuntu-24-dev")
 ## 2. Create a session
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto exec my-nest -- bash -lc 'echo hi'
+```
+
+```shell API
 curl -s -X POST https://api.tyto.run/nest/$NEST_ID/sessions \
   -H "Authorization: Bearer $TYTO_API_KEY" \
   -H "Content-Type: application/json" \
@@ -51,16 +59,19 @@ session = nest.create_session(argv=["bash", "-lc", "echo hi"], tty=False)
 
 ## 3. Attach and read output
 
+`POST /nest/{id}/sessions/{session_id}/attach/prepare` mints a signed grant and a `wss_url` — connect a WebSocket client to `wss_url` presenting the grant to stream the session's I/O.
+
 <CodeGroup>
-```bash curl
-# GET /nest/{id}/sessions/{session_id}/attach is a WebSocket upgrade —
-# use a WebSocket client, e.g. websocat:
-websocat "wss://api.tyto.run/nest/$NEST_ID/sessions/$SESSION_ID/attach" \
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/sessions/$SESSION_ID/attach/prepare \
   -H "Authorization: Bearer $TYTO_API_KEY"
+# => { "grant": "...", "wss_url": "wss://...", "session_id": ..., ... }
+
+websocat "$WSS_URL" -H "Authorization: Bearer $GRANT"
 ```
 
 ```ts TypeScript
-const ws = session.attach();
+const ws = await session.attach();
 ws.on("message", (data) => console.log(String(data)));
 ```
 
@@ -77,11 +88,22 @@ with session.attach() as ws:
 
 ## Interactive shells
 
-For an interactive terminal instead of a one-shot command, use `GET /nest/{id}/console` (a raw WebSocket, not a managed session):
+For an interactive terminal instead of a one-shot command, use `POST /nest/{id}/console/prepare`, which also returns a signed grant and `wss_url` to connect a PTY to:
 
 <CodeGroup>
+```shell Shell
+tyto console my-nest
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/console/prepare \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"cols": 80, "rows": 24}'
+```
+
 ```ts TypeScript
-const ws = nest.console();
+const ws = await nest.console();
 ```
 
 ```python Python
@@ -92,4 +114,4 @@ with nest.console() as ws:
 
 ## From an MCP client
 
-If you're driving Tyto from Claude Desktop, Claude Code, or another MCP client, use the `nest_run` tool instead of managing sessions and WebSockets yourself — it runs the command and returns combined stdout/stderr plus the exit code in one call. See [MCP Tools](/mcp/tools).
+If you're driving Tyto from Claude Desktop, Claude Code, or another MCP client, use the `nest_run` tool instead of managing sessions and grants yourself — it runs the command and returns combined stdout/stderr plus the exit code in one call. See [MCP Tools](/mcp/tools).

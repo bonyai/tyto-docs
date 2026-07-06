@@ -1,0 +1,262 @@
+---
+title: Lifecycle
+description: start, stop, wake, inspect, restore, fork, delete
+---
+
+## `tyto start <nest>`
+
+Start a stopped nest so you can open a console, run commands, or serve
+previews.
+
+<CodeGroup>
+```shell Shell
+tyto start web
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/start \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+await nest.start();
+```
+
+```python Python
+nest.start()
+```
+</CodeGroup>
+
+Start it and immediately open a shell:
+
+<CodeGroup>
+```shell Shell
+tyto console web
+```
+</CodeGroup>
+
+## `tyto stop <nest>`
+
+Stop a running nest. Persistent `/home/tyto` data survives stop/start
+cycles.
+
+<CodeGroup>
+```shell Shell
+tyto stop web
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/stop \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+await nest.stop();
+```
+
+```python Python
+nest.stop()
+```
+</CodeGroup>
+
+Start it again later:
+
+<CodeGroup>
+```shell Shell
+tyto start web
+```
+</CodeGroup>
+
+## `tyto wake <nest>`
+
+Wake a suspended or auto-stopped nest using the fastest path Tyto can
+safely take.
+
+Flags:
+- `--reason string` — wake reason label (defaults to `cli`)
+
+<CodeGroup>
+```shell Shell
+tyto wake web
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/wake \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+await nest.wake();
+```
+
+```python Python
+nest.wake()
+```
+</CodeGroup>
+
+Wake a nest with a reason label (shows up in operator tooling):
+
+<CodeGroup>
+```shell Shell
+tyto wake web --reason preview
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/wake \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "preview"}'
+```
+</CodeGroup>
+
+## `tyto inspect <nest>`
+
+Show details for one nest, including fields hidden from the default list
+view.
+
+<CodeGroup>
+```shell Shell
+tyto inspect web
+```
+
+```shell API
+curl -s https://api.tyto.run/nest/$NEST_ID \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+const nest = await tyto.get(nestId);
+```
+
+```python Python
+nest = tyto.get(nest_id)
+```
+</CodeGroup>
+
+Inspect a nest as JSON:
+
+<CodeGroup>
+```shell Shell
+tyto inspect web --json
+```
+</CodeGroup>
+
+## `tyto restore <nest>`
+
+Restore a stopped nest from a snapshot of its persistent `/home/tyto`
+data.
+
+Flags:
+- `--snapshot string` (required) — snapshot id to restore
+
+<CodeGroup>
+```shell Shell
+tyto restore web --snapshot snap_abc123
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/restore \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"snapshot_id": "snap_abc123"}'
+```
+
+```ts TypeScript
+await nest.restore({ snapshotId: "snap_abc123" });
+```
+
+```python Python
+nest.restore(snapshot_id="snap_abc123")
+```
+</CodeGroup>
+
+Find a snapshot id first:
+
+<CodeGroup>
+```shell Shell
+tyto snapshot list web
+```
+</CodeGroup>
+
+## `tyto fork <nest>`
+
+Fork a nest into a new running nest with its own persistent data.
+
+Flags:
+- `--name string` (required) — new nest name
+- `--stop-if-running` — stop the source nest before forking
+
+<CodeGroup>
+```shell Shell
+tyto fork web --name web-copy
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/fork \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "web-copy"}'
+```
+
+```ts TypeScript
+const fork = await nest.fork({ name: "web-copy" });
+```
+
+```python Python
+fork = nest.fork(name="web-copy")
+```
+</CodeGroup>
+
+Fork a nest, stopping the source first:
+
+<CodeGroup>
+```shell Shell
+tyto fork web --name web-copy --stop-if-running
+```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/fork \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "web-copy", "stop_if_running": true}'
+```
+</CodeGroup>
+
+## `tyto delete <nest>` (alias: `rm`)
+
+Delete a nest and its persistent `/home/tyto` data. **This cannot be
+undone unless you have a snapshot.**
+
+Flags:
+- `-y, --yes` — confirm deletion (required; no interactive prompt)
+
+Snapshot first if you might need the data later:
+
+<CodeGroup>
+```shell Shell
+tyto snapshot create web --name before-delete
+```
+</CodeGroup>
+
+Delete a nest:
+
+<CodeGroup>
+```shell Shell
+tyto delete web --yes
+# or the short form:
+tyto rm web --yes
+```
+
+```shell API
+curl -s -X DELETE https://api.tyto.run/nest/$NEST_ID \
+  -H "Authorization: Bearer $TYTO_API_KEY"
+```
+
+```ts TypeScript
+await nest.delete();
+```
+
+```python Python
+nest.delete()
+```
+</CodeGroup>

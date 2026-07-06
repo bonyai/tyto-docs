@@ -7,11 +7,28 @@ A **nest** is a sandboxed Linux VM that Tyto creates, runs, and manages for you.
 
 ## Creating a nest
 
-`POST /nest/` creates and starts a nest from a template:
+`POST /nest` creates and starts a nest from a template:
 
-```json
-{ "name": "my-nest", "template": "ubuntu-24-dev" }
+<CodeGroup>
+```shell Shell
+tyto create my-nest --template ubuntu-24-dev
 ```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-nest", "template": "ubuntu-24-dev"}'
+```
+
+```ts TypeScript
+const nest = await tyto.create({ name: "my-nest", template: "ubuntu-24-dev" });
+```
+
+```python Python
+nest = tyto.create(name="my-nest", template="ubuntu-24-dev")
+```
+</CodeGroup>
 
 - `name` must match `^[a-z][a-z0-9-]{0,62}$`.
 - `template` defaults to `ubuntu-24-dev`. Other options: `ubuntu-dev`, `ubuntu-noble-langs`, `ubuntu-2604-v01`, `ubuntu-latest-twe-v01`.
@@ -40,4 +57,5 @@ Nests that sit idle can be put to sleep automatically — see [Keepalive Holds](
 <CardGroup cols={2}>
   <Card title="Run a command" icon="terminal" href="/guides/run-a-command" />
   <Card title="Keepalive holds" icon="clock" href="/guides/keepalive-holds" />
+  <Card title="Lifecycle CLI reference" icon="rotate" href="/cli-reference/lifecycle" />
 </CardGroup>

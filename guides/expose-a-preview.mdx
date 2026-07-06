@@ -8,7 +8,11 @@ If your nest is running a dev server or API on some port, a preview turns that p
 ## Create a preview
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto preview my-nest --port 3000 --name web
+```
+
+```shell API
 curl -s -X POST https://api.tyto.run/nest/$NEST_ID/previews \
   -H "Authorization: Bearer $TYTO_API_KEY" \
   -H "Content-Type: application/json" \
@@ -34,7 +38,12 @@ print(preview.url)
 ## List, inspect, and revoke
 
 <CodeGroup>
-```bash curl
+```shell Shell
+tyto preview list my-nest
+tyto preview revoke web-a1b2
+```
+
+```shell API
 curl -s https://api.tyto.run/nest/$NEST_ID/previews \
   -H "Authorization: Bearer $TYTO_API_KEY"
 

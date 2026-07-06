@@ -20,14 +20,14 @@ nest = tyto.create(name="my-nest", template="ubuntu-24-dev")
 nest.put("./hello.txt", "hello.txt")
 nest.get("hello.txt", "./hello.downloaded.txt")
 
-# Create a session and attach over WebSocket
+# Create a session and attach via a signed grant + WebSocket
 session = nest.create_session(argv=["bash", "-lc", "echo hi"], tty=False)
 with session.attach() as ws:
     for message in ws:
         print(message)
 
-# Open raw WebSocket connections
-with nest.exec() as ws: ...
+# Open an interactive shell / one-off TTY exec (also grant + WebSocket under the hood)
+with nest.exec_tty(argv=["htop"]) as ws: ...
 with nest.console() as ws: ...
 
 # Create a preview
@@ -71,9 +71,9 @@ nest.delete()
 | `nest.previews` | Previews scoped to the nest |
 | `nest.snapshots` | Snapshots + fork/restore |
 | `nest.holds` | Keepalive holds |
-| `session.attach()` | WebSocket stream for a session |
-| `nest.console()` | Interactive shell WebSocket |
-| `nest.exec()` | Command WebSocket |
+| `session.attach()` | Prepare a grant and stream a session's I/O over WebSocket |
+| `nest.console()` | Prepare a grant and open an interactive shell PTY |
+| `nest.exec_tty()` | Prepare a grant and run a one-off TTY command |
 
 ## Examples
 

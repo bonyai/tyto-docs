@@ -7,9 +7,18 @@ A **preview** exposes a port inside a nest as an HTTPS URL, so you can view a de
 
 `POST /nest/{id}/previews` creates one:
 
-```json
-{ "port": 3000, "auth": "private", "name": "web" }
+<CodeGroup>
+```shell Shell
+tyto preview my-nest --port 3000 --name web
 ```
+
+```shell API
+curl -s -X POST https://api.tyto.run/nest/$NEST_ID/previews \
+  -H "Authorization: Bearer $TYTO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"port": 3000, "auth": "private", "name": "web"}'
+```
+</CodeGroup>
 
 - `port` must be between 1024 and 65535.
 - `auth` is `private` (requires a Tyto session to view) or `public` (anyone with the URL can view). The `public` boolean field mirrors this.
@@ -29,4 +38,7 @@ Two unauthenticated endpoints handle the browser side of a preview, and you gene
 
 ## Related
 
-<Card title="Expose a preview" icon="link" href="/guides/expose-a-preview" />
+<CardGroup cols={2}>
+  <Card title="Expose a preview" icon="link" href="/guides/expose-a-preview" />
+  <Card title="Everyday CLI reference" icon="bolt" href="/cli-reference/everyday" />
+</CardGroup>

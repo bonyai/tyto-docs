@@ -19,14 +19,14 @@ const nest = await tyto.create({ name: "my-nest", template: "ubuntu-24-dev" });
 await nest.put("./hello.txt", "hello.txt");
 await nest.get("hello.txt", "./hello.downloaded.txt");
 
-// Create a session and attach over WebSocket
+// Create a session and attach via a signed grant + WebSocket
 const session = await nest.createSession({ tty: false, argv: ["bash", "-lc", "echo hi"] });
-const ws = session.attach();
+const ws = await session.attach();
 ws.on("message", (d) => console.log(String(d)));
 
-// Open a raw interactive shell
-const console_ = nest.console();
-const exec_ = nest.exec();
+// Open an interactive shell / one-off TTY exec (also grant + WebSocket under the hood)
+const console_ = await nest.console();
+const exec_ = await nest.execTty({ argv: ["htop"] });
 
 // Create a preview
 const preview = await nest.createPreview({ port: 3000, auth: "private" });
@@ -69,9 +69,9 @@ await nest.delete();
 | `nest.previews` | Previews scoped to the nest |
 | `nest.snapshots` | Snapshots + fork/restore |
 | `nest.holds` | Keepalive holds |
-| `session.attach()` | WebSocket stream for a session |
-| `nest.console()` | Interactive shell WebSocket |
-| `nest.exec()` | Command WebSocket |
+| `session.attach()` | Prepare a grant and stream a session's I/O over WebSocket |
+| `nest.console()` | Prepare a grant and open an interactive shell PTY |
+| `nest.execTty()` | Prepare a grant and run a one-off TTY command |
 
 ## Examples
 
