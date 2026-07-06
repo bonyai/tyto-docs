@@ -3,9 +3,18 @@
   "theme": "mint",
   "name": "Tyto",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#4ADE80",
-    "dark": "#166534"
+    "primary": "#c6f24e",
+    "light": "#c6f24e",
+    "dark": "#9bbf3a"
+  },
+  "background": {
+    "color": {
+      "light": "#ffffff",
+      "dark": "#08090b"
+    }
+  },
+  "appearance": {
+    "default": "dark"
   },
   "favicon": "/favicon.svg",
   "logo": {
