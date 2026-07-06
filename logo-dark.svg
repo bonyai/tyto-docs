@@ -15,5 +15,5 @@
   <!-- cursor -->
   <rect x="30.5" y="13" width="4.5" height="13" rx="1" fill="#84cc16"/>
   <!-- title -->
-  <text x="46" y="26" font-family="ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="600" fill="#0d0d0d">Tyto docs</text>
+  <text x="46" y="26" font-family="ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="600" fill="#f5f5f5">Tyto docs</text>
 </svg>
