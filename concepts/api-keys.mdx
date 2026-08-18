@@ -1,0 +1,77 @@
+---
+title: API keys
+description: Issue and revoke personal API keys
+---
+
+A **personal API key** (`byk_`-prefixed) is the user-principal credential most CLI, SDK, and direct API calls authenticate with — see [Authentication](/authentication) for how it's used on requests. This page covers managing the keys themselves.
+
+<Note>
+Key management is **JWT-only** — keys can never manage keys. Every operation below requires a `supabaseJwt` and rejects a `byk_` key, even one belonging to the same user.
+</Note>
+
+## Listing keys
+
+```
+GET /v1/api-keys
+```
+
+Returns `APIKeyListResponse`: `{ "api_keys": [ ...APIKey ] }`. Each entry exposes only a masked view of the key:
+
+<ResponseField name="key_id" type="string" required>
+  Identifier for the key, used to revoke it.
+</ResponseField>
+<ResponseField name="name" type="string">
+  Optional display label, up to 128 characters.
+</ResponseField>
+<ResponseField name="display_prefix" type="string" required>
+  The key's prefix, for identifying it without exposing the secret.
+</ResponseField>
+<ResponseField name="display_last4" type="string" required>
+  The last 4 characters of the secret.
+</ResponseField>
+<ResponseField name="created_at" type="string" required>
+  Creation timestamp.
+</ResponseField>
+<ResponseField name="revoked_at" type="string">
+  Revocation timestamp, if revoked.
+</ResponseField>
+
+## Creating a key
+
+```
+POST /v1/api-keys
+```
+
+Request body (`APIKeyCreateRequest`, optional):
+
+<ParamField body="name" type="string">
+  Display label, up to 128 characters.
+</ParamField>
+
+Returns `201` with `APIKeyCreateResponse`:
+
+<ResponseField name="api_key" type="object" required>
+  The new key's `APIKey` metadata (masked, as in list).
+</ResponseField>
+<ResponseField name="secret" type="string" required>
+  The full secret value. Store it as a user-principal API key.
+</ResponseField>
+
+<Warning>
+`secret` is shown **exactly once**, in the create response. There is no way to retrieve it again afterward — list only ever returns `display_prefix`/`display_last4`. If it's lost, revoke the key and create a new one.
+</Warning>
+
+## Revoking a key
+
+```
+DELETE /v1/api-keys/{key_id}
+```
+
+Returns `204` on success.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/authentication" />
+  <Card title="Organizations" icon="building" href="/concepts/organizations" />
+</CardGroup>

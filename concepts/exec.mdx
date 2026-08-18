@@ -1,0 +1,93 @@
+---
+title: Exec
+description: Three ways to run a command in a sandbox
+---
+
+There are three distinct ways to run a command in a sandbox. Pick based on whether you need a single buffered result, a live interactive terminal, or a command that outlives the connection that started it.
+
+| Mode | Endpoint | Use it when |
+| --- | --- | --- |
+| Buffered exec | `POST /v1/sandbox/{sandbox_id}/exec` | You want one command's exit code and output as a single JSON response. |
+| TTY exec | `GET /v1/sandbox/{sandbox_id}/exec` (WebSocket) | You want an interactive, transient terminal for one command. |
+| Managed sessions | `POST /v1/sandbox/{sandbox_id}/sessions` | You want a named command you can list, re-attach to, or kill independently of the connection that started it. |
+
+## Buffered exec
+
+```
+POST /v1/sandbox/{sandbox_id}/exec
+```
+
+Synchronous, non-TTY, JSON request and response — no WebSocket upgrade involved. The request body (`DirectExecRequest`) extends the common command shape:
+
+<ParamField body="cmd" type="string[]" required>
+  Argv to run. At least one element.
+</ParamField>
+<ParamField body="env" type="object">
+  Environment variables to set.
+</ParamField>
+<ParamField body="path" type="string">
+  Working directory.
+</ParamField>
+<ParamField body="timeout_s" type="integer">
+  Timeout in seconds, 1–300.
+</ParamField>
+<ParamField body="stdin_b64" type="string">
+  Base64-encoded stdin to feed the process.
+</ParamField>
+<ParamField body="output_encoding" type="string">
+  `utf8` or `base64`, controlling how `stdout`/`stderr` are encoded in the response.
+</ParamField>
+
+Response (`DirectExecResponse`), always `200`:
+
+<ResponseField name="exit_code" type="integer" required>
+  The process's exit code.
+</ResponseField>
+<ResponseField name="signaled" type="boolean" required>
+  Whether the process was terminated by a signal.
+</ResponseField>
+<ResponseField name="signal" type="integer">
+  The signal number, if `signaled` is true.
+</ResponseField>
+<ResponseField name="timed_out" type="boolean" required>
+  Whether `timeout_s` was reached before the process exited.
+</ResponseField>
+<ResponseField name="stdout" type="string" required>
+  Captured stdout, encoded per `output_encoding`.
+</ResponseField>
+<ResponseField name="stderr" type="string" required>
+  Captured stderr, encoded per `output_encoding`.
+</ResponseField>
+<ResponseField name="stdout_truncated" type="boolean" required>
+  Whether `stdout` was cut short.
+</ResponseField>
+<ResponseField name="stderr_truncated" type="boolean" required>
+  Whether `stderr` was cut short.
+</ResponseField>
+<ResponseField name="output_encoding" type="string" required>
+  `utf8` or `base64`, matching the request (or the server default).
+</ResponseField>
+
+<Warning>
+A non-zero `exit_code` is still a **200 response** — it is not an API error. Buffered exec's HTTP status reflects whether the call itself succeeded (reached the sandbox, ran the command, and returned a result), not whether the command exited cleanly. Check `exit_code` and `signaled` in the body to determine command success; don't infer it from HTTP status. See [Errors](/concepts/errors) for what actually does produce a non-2xx response.
+</Warning>
+
+## TTY exec
+
+```
+GET /v1/sandbox/{sandbox_id}/exec
+```
+
+An HTTP upgrade to a WebSocket for a transient, interactive TTY session — one-off, not tracked as a named session. The START frame carries a `TTYStartRequest`. See [WebSockets](/concepts/websockets) for how the upgrade, START frame, and admission-at-START model work — that mechanism isn't repeated here.
+
+## Managed sessions
+
+For a command that should persist and be addressable by name independent of any single connection — list it, re-attach to it later, kill it explicitly — use a managed session instead of either exec mode. See [Sessions](/concepts/sessions).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Sessions" icon="terminal" href="/concepts/sessions" />
+  <Card title="WebSockets" icon="bolt" href="/concepts/websockets" />
+  <Card title="Errors" icon="triangle-exclamation" href="/concepts/errors" />
+</CardGroup>

@@ -1,17 +1,49 @@
 ---
 title: Overview
-description: Manage Tyto nests from any MCP client
+description: Manage Tyto sandboxes from any MCP client
 ---
 
-`@bonya-ai/tyto-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server for the Tyto API. It lets any MCP client — Claude Desktop, Claude Code, Cursor, and others — create and manage nests, run commands, move files, and work with previews, snapshots, and keepalive holds, all through tool calls instead of raw HTTP.
+`@bonya-ai/tyto-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server for the Bonya Compute REST API. It lets any MCP client — Claude Desktop, Claude Code, Cursor, and others — create and manage **sandboxes**, run commands, work with files, manage long-lived background **sessions**, and create **preview** URLs, all through tool calls instead of raw HTTP.
 
-The server is self-contained: it talks to the Tyto REST API directly and does not depend on the TypeScript or Python SDK.
+<Note>
+The server is self-contained: it talks to the Bonya Compute REST API directly and does not depend on the `@bonya/tyto` or `tyto` gRPC SDKs. Because it's a thin wrapper over the REST API, it inherits that API's contract — including what the REST surface does *not* expose. Snapshots, for example, are managed exclusively through the gRPC SDK and have no REST endpoints, so `snapshot_*` tools are intentionally absent here. See [Tools](/mcp/tools) for the full list of what is and isn't covered.
+</Note>
+
+## Tool groups
+
+The server registers 14 tools across four groups:
+
+<CardGroup cols={2}>
+  <Card title="Sandboxes" icon="cube">
+    Create, list, inspect, delete, and resume sandboxes — isolated cloud compute environments created from a template.
+  </Card>
+  <Card title="Exec & filesystem" icon="terminal">
+    Run buffered commands (`sandbox_exec`) and read, write, list, stat, create, rename, and delete files inside a sandbox.
+  </Card>
+  <Card title="Sessions" icon="layer-group">
+    Create, list, and kill named, long-lived background sessions for long-running or non-interactive-buffered processes.
+  </Card>
+  <Card title="Previews" icon="link">
+    Create, list, and delete preview URLs that proxy to a port inside a sandbox.
+  </Card>
+</CardGroup>
 
 <CardGroup cols={2}>
   <Card title="Setup" icon="gear" href="/mcp/setup">
     Install the server and connect it to your MCP client.
   </Card>
   <Card title="Tools" icon="wrench" href="/mcp/tools">
-    Full list of available tools.
+    Full reference for all 14 tools, including parameters and return values.
   </Card>
 </CardGroup>
+
+## What's out of scope
+
+Because the server wraps the REST API rather than the gRPC SDKs, a few things familiar from other Tyto surfaces are deliberately not exposed as tools:
+
+- **Snapshots** — no REST endpoints exist for snapshot create/list/restore/fork; that functionality lives only in the SDK and CLI over gRPC.
+- **Keepalive holds, `whoami`/health checks** — no REST equivalents exist for these.
+- **Interactive/streaming endpoints** — the API's WebSocket surfaces (TTY `exec`, session `attach`) don't fit a request/response MCP tool call, so they aren't wrapped. `sandbox_exec` covers non-interactive buffered commands, and `session_create` covers long-running background processes instead.
+- **Explicit start/stop/wake** — sandboxes suspend automatically; `sandbox_resume` is the only explicit lifecycle verb.
+
+If you used an earlier version of this server, note that all lifecycle and product terminology has moved to **sandboxes** — there is no "nest" concept in the current API or this server.

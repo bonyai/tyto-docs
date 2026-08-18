@@ -1,0 +1,77 @@
+---
+title: Organizations
+description: Multi-tenant context and administration
+---
+
+An **organization** is the tenant a sandbox, preview, or other resource belongs to. Every caller has an implicit **personal organization**; callers can also belong to named organizations shared with others.
+
+## Personal vs. named organizations
+
+`personal: true` marks the deterministic tenant an omitted `X-Bonya-Organization-ID` header resolves to — see [Authentication](/authentication#organization-context) for how that header selects org context on sandbox-scoped calls. Personal organizations can't be invited into; membership is just the one owner.
+
+Named organizations are created explicitly (`POST /v1/organizations`) and can have multiple members with different roles.
+
+### Organization fields
+
+<ResponseField name="organization_id" type="string" required>
+  Matches `^org-[0-9a-f]{32}$`.
+</ResponseField>
+<ResponseField name="name" type="string" required>
+  Display name, up to 128 characters.
+</ResponseField>
+<ResponseField name="personal" type="boolean" required>
+  Whether this is the caller's personal organization.
+</ResponseField>
+<ResponseField name="role" type="string">
+  The requesting caller's role, when known.
+</ResponseField>
+<ResponseField name="created_at" type="string" required>
+  Creation timestamp.
+</ResponseField>
+
+## Roles
+
+Roles are a closed set — `owner` or `member`, defaulting to `member`. There are no custom roles.
+
+<Warning>
+An organization's **final owner** can't be demoted or removed — both return `409 final_owner`. This is also why the sole owner of a personal organization can't leave it: a personal organization always has exactly one member, who is always its owner.
+</Warning>
+
+## Administration is JWT-only
+
+<Note>
+Organization administration — creating, renaming, and reading organizations; listing, changing the role of, or removing members — requires a `supabaseJwt`. Personal API keys (`byk_`) are rejected outright on these operations. A `byk_` key can still *set org context* via `X-Bonya-Organization-ID` on sandbox-scoped calls (see [Authentication](/authentication)); it just can't administer organizations itself. These are dashboard-facing operations, not something an automated client using an API key is expected to call directly.
+</Note>
+
+The core administrative operations:
+
+| Operation | Notes |
+| --- | --- |
+| `GET /v1/organizations` | Organizations the caller belongs to, with their role in each. |
+| `POST /v1/organizations` | Create an organization owned by the caller. |
+| `GET /v1/organizations/{organization_id}` | Any member may read. A non-member gets `404`, never `403`. |
+| `PATCH /v1/organizations/{organization_id}` | Rename. Owner only. There is no organization delete operation. |
+| `GET /v1/organizations/{organization_id}/members` | Any member may list. |
+| `PATCH /v1/organizations/{organization_id}/members/{user_id}` | Change a member's role. Owner only. |
+| `DELETE /v1/organizations/{organization_id}/members/{user_id}` | Administrative removal (owner only) and a member's own self-leave share this same call. |
+
+## Invitations
+
+Adding someone to a named organization goes through an invitation, not a direct membership write. This surface is dashboard-facing: four of its operations are marked internal in the API contract (`x-internal: true`), so treat invitations as a concept worth understanding rather than a REST flow to build automation against.
+
+Conceptually:
+
+- An owner creates an invitation addressed to an email with a role. The raw token is returned exactly once, and the dashboard — not the API — builds the acceptance link, since the server doesn't know the dashboard's origin.
+- A live invitation already addressed to the same email is a conflict; a personal organization can't be invited into at all.
+- Acceptance lives at a **separate, top-level path**, not nested under the organization — because the token itself is the credential, the same pattern used elsewhere for one-time bearer tokens. The caller must be signed in as the invited address; the check is case-insensitive.
+- Accepting, once, atomically provisions membership and consumes the token. Unknown, wrong-recipient, already-consumed, revoked, and expired tokens are all a single indistinguishable `404` — a mismatched attempt doesn't invalidate the invitation for its real recipient.
+
+All of this is JWT-only, same as the rest of organization administration.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/authentication" />
+  <Card title="API keys" icon="key" href="/concepts/api-keys" />
+  <Card title="Errors" icon="triangle-exclamation" href="/concepts/errors" />
+</CardGroup>

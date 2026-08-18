@@ -1,0 +1,59 @@
+---
+title: console
+description: Open an interactive shell in a sandbox
+---
+
+## `tyto console [sandbox]`
+
+<Info>Aliases: `sh`, `shell`</Info>
+
+Opens an interactive shell in a sandbox — the command you want most of the time.
+
+```shell
+tyto console            # pick a sandbox, then attach
+tyto console web        # by name
+tyto console sbx-1a2b…  # by id
+```
+
+The sandbox argument accepts a name or id interchangeably — see [Sandbox resolution](/cli-reference/overview#how-resolution-works) for exactly how that's decided. Omit it to pick from a list of your sandboxes.
+
+## What it does
+
+1. **Resumes the sandbox** if it's currently suspended, with a spinner while it wakes. Attaching would trigger the wake anyway, but doing it explicitly first means the wait is visible instead of looking like a hang.
+2. **Attaches to the sandbox's `console` session**, creating it if it doesn't exist yet. `console` is a reserved session name used specifically for this command, so repeated runs of `tyto console` land back in the same session rather than piling up new ones.
+3. If a `console` session exists but has already finished (exited, killed, or failed), it's replaced with a fresh one rather than reused.
+
+Leaving the console (Ctrl+D, `exit`, or closing the terminal) detaches from the session — it **keeps running** in the sandbox. Running `tyto console` again reattaches to the same place, replaying any scrollback produced while you were away.
+
+## Flags
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--session` | `console` | Managed session to attach to, instead of the default `console` session. |
+| `--by-name` | `false` | Treat the sandbox argument as a name even if it looks like an id. |
+
+Passing `--session` points `console` at a different [managed session](/cli-reference/session) — useful for keeping a dedicated long-running terminal (say, `dev`) separate from your interactive one.
+
+## Examples
+
+<CodeGroup>
+```shell Pick a sandbox interactively
+tyto console
+```
+
+```shell By name
+tyto console web
+```
+
+```shell By id
+tyto console sbx-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b
+```
+
+```shell Attach to a different session
+tyto console web --session dev
+```
+</CodeGroup>
+
+<Note>
+For full control over managed sessions — listing them, creating one running a specific command, killing one — see [`tyto session`](/cli-reference/session). `console` is a convenient shortcut for the single most common case.
+</Note>

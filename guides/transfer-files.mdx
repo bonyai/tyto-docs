@@ -1,83 +1,178 @@
 ---
 title: Transfer files
-description: Upload and download files or directories in a nest
+description: Upload, download, list, and inspect files on a sandbox
 ---
 
-Files live under `/home/tyto` inside a nest. Paths you pass are relative to that root.
+Every sandbox exposes a filesystem API under `/v1/sandbox/{sandbox_id}/fs`. Read and write bodies are **raw bytes** — not tar archives, not multipart form data — so each call moves exactly one file. See [Files](/concepts/files) for the full field reference; this guide is workflow-focused.
 
 ## Upload a file
 
 <CodeGroup>
-```shell Shell
-tyto put ./hello.txt my-nest:hello.txt
-```
-
-```shell API
-curl -s -X PUT "https://api.tyto.run/nest/$NEST_ID/fs/write?path=hello.txt&kind=file" \
-  -H "Authorization: Bearer $TYTO_API_KEY" \
+```shell cURL
+curl -s -X PUT "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/write?path=/workspace/hello.txt" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @./hello.txt
 ```
 
+```shell CLI
+tyto fs upload $SANDBOX_ID ./hello.txt /workspace/hello.txt
+```
+
 ```ts TypeScript
-await nest.put("./hello.txt", "hello.txt");
+await sandbox.files.upload("./hello.txt", "/workspace/hello.txt");
 ```
 
 ```python Python
-nest.put("./hello.txt", "hello.txt")
+sandbox.files.upload("./hello.txt", "/workspace/hello.txt")
+```
+
+```go Go
+sandbox.Files.Upload(ctx, "./hello.txt", "/workspace/hello.txt")
 ```
 </CodeGroup>
+
+`fs/write` returns `204` with no body on success. The SDKs stream in 64 KiB chunks through a guest-side temp file and publish atomically, so a reader never observes a partially written file.
 
 ## Download a file
 
 <CodeGroup>
-```shell Shell
-tyto get my-nest:hello.txt ./hello.downloaded.txt
-```
-
-```shell API
-curl -s "https://api.tyto.run/nest/$NEST_ID/fs/read?path=hello.txt" \
-  -H "Authorization: Bearer $TYTO_API_KEY" \
+```shell cURL
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/read?path=/workspace/hello.txt" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
   -o ./hello.downloaded.txt
 ```
 
+```shell CLI
+tyto fs download $SANDBOX_ID /workspace/hello.txt ./hello.downloaded.txt
+```
+
 ```ts TypeScript
-await nest.get("hello.txt", "./hello.downloaded.txt");
+await sandbox.files.download("/workspace/hello.txt", "./hello.downloaded.txt");
 ```
 
 ```python Python
-nest.get("hello.txt", "./hello.downloaded.txt")
+sandbox.files.download("/workspace/hello.txt", "./hello.downloaded.txt")
+```
+
+```go Go
+sandbox.Files.Download(ctx, "/workspace/hello.txt", "./hello.downloaded.txt")
 ```
 </CodeGroup>
 
-## Directories
+`fs/read` returns the raw bytes as `application/octet-stream` — there's no envelope to unwrap.
 
-Set `kind=dir` and send/receive a `.tar` archive instead of raw bytes. Both SDKs handle this automatically when the local path is a directory — `nest.put`/`nest.get` pick `file` or `dir` for you.
+<Note>
+There's no directory/tar transfer mode in this API. `upload`/`download` (CLI and SDKs) and `fs/read`/`fs/write` (REST) each move exactly one file. To move a directory tree, upload or download its files individually, or run a command via [exec](/guides/run-a-command) that packs/unpacks an archive on the sandbox side.
+</Note>
+
+## Write small content directly
+
+For short text content you don't want to stage as a local file first, `read`/`write` on the SDK take bytes or a string directly rather than a file path:
 
 <CodeGroup>
-```shell Shell
-tyto put ./my-project my-nest:my-project
-```
-
-```shell API
-tar -cf - ./my-project | curl -s -X PUT \
-  "https://api.tyto.run/nest/$NEST_ID/fs/write?path=my-project&kind=dir" \
-  -H "Authorization: Bearer $TYTO_API_KEY" \
-  -H "Content-Type: application/x-tar" \
-  --data-binary @-
-```
-
 ```ts TypeScript
-await nest.put("./my-project", "my-project");
+await sandbox.files.write("/workspace/message.txt", "hello\n");
+const payload = await sandbox.files.read("/workspace/message.txt");
 ```
 
 ```python Python
-nest.put("./my-project", "my-project")
+sandbox.files.write("/workspace/message.txt", "hello\n")
+payload = sandbox.files.read("/workspace/message.txt")
 ```
 </CodeGroup>
 
-The response to a download includes an `X-Tyto-FS-Kind` header (`file` or `dir`) telling you how to interpret the body.
+## List a directory
 
-## From an MCP client
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/list?path=/workspace" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
 
-Use the `nest_write_file` / `nest_read_file` tools for small text files, or `nest_upload` / `nest_download` for arbitrary local files and directories. See [MCP Tools](/mcp/tools).
+```shell CLI
+tyto fs ls $SANDBOX_ID /workspace
+```
+
+```ts TypeScript
+const entries = await sandbox.files.list("/workspace");
+```
+
+```python Python
+entries = sandbox.files.list("/workspace")
+```
+</CodeGroup>
+
+The response is `{ "files": [ ...FsFileInfo ] }` — immediate children only, sorted by name, each carrying `path`, `name`, `kind` (`FILE`/`DIRECTORY`/`SYMLINK`/`OTHER`), `size`, `mode`, and `modified_at_unix_nanos`.
+
+## Stat a file
+
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/stat?path=/workspace/hello.txt" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```shell CLI
+tyto fs stat $SANDBOX_ID /workspace/hello.txt
+```
+
+```ts TypeScript
+const info = await sandbox.files.stat("/workspace/hello.txt");
+```
+
+```python Python
+info = sandbox.files.stat("/workspace/hello.txt")
+```
+</CodeGroup>
+
+`stat` returns lstat-style metadata — a symlink is reported as a symlink, not followed.
+
+## Directories, renaming, and deleting
+
+<CodeGroup>
+```shell cURL
+# mkdir
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/mkdir" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/workspace/output"}'
+
+# rename
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/rename" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"from": "/workspace/hello.txt", "to": "/workspace/output/hello.txt"}'
+
+# delete (recursive)
+curl -s -X DELETE "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs?path=/workspace/output&recursive=true" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```shell CLI
+tyto fs mkdir $SANDBOX_ID /workspace/output
+tyto fs mv $SANDBOX_ID /workspace/hello.txt /workspace/output/hello.txt
+tyto fs rm $SANDBOX_ID /workspace/output --recursive
+```
+
+```ts TypeScript
+await sandbox.files.mkdir("/workspace/output");
+await sandbox.files.move("/workspace/hello.txt", "/workspace/output/hello.txt");
+await sandbox.files.remove("/workspace/output", true);
+```
+
+```python Python
+sandbox.files.mkdir("/workspace/output")
+sandbox.files.move("/workspace/hello.txt", "/workspace/output/hello.txt")
+sandbox.files.remove("/workspace/output", recursive=True)
+```
+</CodeGroup>
+
+`move`/`rename` is same-filesystem and atomic — it doesn't overwrite an existing destination, and won't move across filesystems. `remove` with `recursive` set removes a non-empty directory without following symlinks.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Files" icon="folder" href="/concepts/files" />
+  <Card title="Sandboxes" icon="box" href="/concepts/sandboxes" />
+</CardGroup>

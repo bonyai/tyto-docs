@@ -3,38 +3,95 @@ title: Installation
 description: Install and configure the Python SDK
 ---
 
+The Python SDK is published on PyPI as `tyto.run`; the importable package
+is `tyto`, typed with `py.typed`. It's synchronous and talks to Tyto over
+gRPC — the same transport as the CLI.
+
+## Requirements
+
+- Python 3.10+
+- `grpcio>=1.83,<2`
+- `protobuf>=7.35.1,<8`
+- A Tyto API key (`byk_...`)
+
 ## Install
 
 ```bash
-pip install tyto.run
+python -m pip install tyto.run
+```
+
+Or from a checkout of the SDK repository:
+
+```bash
+python -m pip install -e .
 ```
 
 ## Configure
 
+Every setting has an environment-variable fallback, so the common case
+needs no arguments at all:
+
 <CodeGroup>
 ```bash Environment variable
-export TYTO_API_KEY=your_key_here
+export BONYA_API_KEY=byk_...
 ```
 
 ```python Explicit
 from tyto import Tyto
 
-tyto = Tyto(api_key="your_key_here")
+client = Tyto(
+    api_key="byk_...",
+    endpoint="https://api.tyto.run",
+)
 ```
 </CodeGroup>
 
-| Parameter | Env var | Default |
+`api_key` can also be passed positionally: `Tyto("byk_...")`.
+
+| Argument | Environment variable | Default |
 |---|---|---|
-| `api_key` | `TYTO_API_KEY` | — (required) |
-| `api_url` | `TYTO_API_URL` | `https://api.tyto.run` |
+| `api_key` | `BONYA_API_KEY` | *required* |
+| `endpoint` | `BONYA_ENDPOINT` | `https://api.tyto.run` |
+| `organization_id` | `BONYA_ORGANIZATION_ID` | your personal organization |
+| `ca_bundle` | `BONYA_CA_BUNDLE` | system trust store |
+| `timeout` | — | `30` seconds |
+| `max_retries` | — | `2` |
+| `filesystem_read_limit` | — | 64 MiB |
 
-With no arguments, `Tyto()` reads `TYTO_API_KEY` and `TYTO_API_URL` from the environment.
+`api_key` is required. `endpoint` must be an HTTPS URL — the SDK rejects
+non-HTTPS URLs, URLs with userinfo, query strings, fragments, malformed
+ports, or no host. `ca_bundle` points to a PEM bundle for private
+development CAs; if it can't be read, the SDK raises `InvalidRequestError`.
 
-## Context manager
+`timeout` is the default per-operation deadline in seconds; buffered and
+streaming exec calls can override it with `timeout=`. `max_retries`
+controls SDK retries for retryable control-plane operations (create, get,
+list, delete, resume, snapshot create, snapshot delete). `filesystem_read_limit`
+caps bytes buffered by `sandbox.files.read()`.
 
-Use `Tyto` as a context manager to ensure the underlying HTTP connection pool is closed:
+<Note>
+An empty `organization_id` (or `BONYA_ORGANIZATION_ID=""`) raises
+`InvalidRequestError` rather than silently falling back to your personal
+organization — this avoids CI jobs quietly running against the wrong
+tenant when a variable expansion is empty.
+</Note>
+
+Close the client when done, or use `with`, which does it for you. Calling
+SDK methods after `client.close()` raises `InvalidRequestError`.
+
+## Quickstart
 
 ```python
-with Tyto() as tyto:
-    nests = tyto.nests.list()
+from tyto import Tyto
+
+with Tyto() as client:                                     # reads BONYA_API_KEY
+    with client.sandboxes.create(template="ubuntu-24.04") as sandbox:
+        result = sandbox.exec(["echo", "hello"], check=True)
+        print(result.stdout)                               # hello
 ```
+
+That is a real VM: it boots in about a second, runs anything Linux runs,
+and is gone when the `with` block exits.
+
+See [Usage](/sdks/python/usage) for the full surface — sessions, files,
+previews, snapshots, and error handling.

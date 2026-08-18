@@ -1,0 +1,115 @@
+---
+title: Manage your team
+description: Use a shared organization from the CLI, SDKs, and raw REST calls
+---
+
+An **organization** is the tenant a sandbox, preview, or other resource belongs to. This guide covers understanding personal vs. named organizations, why administering one happens on the dashboard rather than through your API key, and — the part you'll actually script against — how to select and use an organization you already belong to from the CLI, an SDK, or raw REST. See [Organizations](/concepts/organizations) for the full concept and field reference.
+
+## Personal vs. named organizations
+
+Every account has an implicit **personal organization** — the tenant an omitted org context resolves to. It always has exactly one member (you, as owner), and it can't be invited into. A **named organization** is created explicitly and can have multiple members with different roles (`owner` or `member` — a closed set, no custom roles).
+
+<Note>
+Your personal organization is always available and needs no setup. Everything in this guide about *using* an organization applies to it too — omitting org context entirely is equivalent to explicitly selecting your personal organization.
+</Note>
+
+## Administration is dashboard-only
+
+<Warning>
+Creating, renaming, and reading organizations; listing, changing the role of, or removing members; and inviting people all require a Supabase session JWT. A personal API key (`byk_`) is **rejected outright** on every one of these operations, even one belonging to the organization's own owner.
+</Warning>
+
+This is a deliberate split, not a gap: these are dashboard-facing operations where a signed-in browser session is doing the asking, not an automated client. If you're setting up a team — creating the organization, inviting members, changing roles — that all happens by signing into the Tyto dashboard, not by scripting it with an API key. See [Organizations](/concepts/organizations#administration-is-jwt-only) for why the split exists and exactly which operations it covers.
+
+What an API key *can* do is select which organization its calls run against, once you're already a member of one. That's the rest of this guide.
+
+## Using an organization from the CLI
+
+`tyto org` controls which organization your commands act in by default, so you don't have to pass `--organization-id` on every command:
+
+<CodeGroup>
+```shell List
+tyto org list
+```
+
+```shell Switch
+tyto org use Acme
+```
+
+```shell Show current
+tyto org show
+```
+
+```shell Reset to personal
+tyto org clear
+```
+</CodeGroup>
+
+`tyto org list` prints a table of organizations you belong to, marking the current one. `tyto org use <name-or-id>` saves an organization as the default for future commands — omit the argument to pick from an interactive list. The value saved to disk is always resolved to an id, never a name, since a name can be renamed out from under a saved selection but an id can't.
+
+```shell
+tyto org use Acme
+tyto list   # now scoped to Acme with no flag needed
+```
+
+`tyto org show` reports what's currently in effect and where it came from (flag, environment variable, or saved selection) — useful when you're not sure which org a command is about to hit. `tyto org clear` removes the saved selection and falls back to your personal organization.
+
+<Note>
+A saved `org use` selection wins only while you're still a member of that organization. If you're removed, commands silently fall back to your personal organization rather than erroring.
+</Note>
+
+## Using an organization from the SDKs
+
+Every SDK reads `BONYA_ORGANIZATION_ID` from the environment as the default org context for every call, or accepts an explicit override at client construction:
+
+<CodeGroup>
+```bash Environment variable
+export BONYA_ORGANIZATION_ID=org-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b
+```
+
+```ts TypeScript
+const client = new Tyto({ organizationId: "org-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b" });
+```
+
+```python Python
+client = Tyto(organization_id="org-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b")
+```
+
+```go Go
+client, err := tyto.NewClient(
+	tyto.WithOrganizationID("org-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b"),
+)
+```
+</CodeGroup>
+
+<Warning>
+For the Go SDK specifically, an explicitly empty `WithOrganizationID("")` (or `BONYA_ORGANIZATION_ID=""`) makes `NewClient` return an error rather than silently falling back to your personal organization — this catches CI jobs that would otherwise run against the wrong tenant when a variable expansion comes back empty.
+</Warning>
+
+## Using an organization from raw REST
+
+Sandbox-scoped calls (sandboxes, exec, sessions, files, previews) accept an optional header to select org context:
+
+```
+X-Bonya-Organization-ID: <organization_id>
+```
+
+- **Omitted** — resolves to your personal organization.
+- **Malformed** — `400`.
+- **Well-formed but you're not a member** — `404`, not `403` (the API doesn't confirm an organization exists to a non-member).
+
+```shell
+curl -s https://api.tyto.run/v1/sandbox \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "X-Bonya-Organization-ID: org-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b"
+```
+
+This header has no effect on the JWT-only organization-administration endpoints described above — it's for scoping API-key calls to sandboxes, previews, and the like, not for managing the organization itself.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Organizations" icon="building" href="/concepts/organizations" />
+  <Card title="Authentication" icon="key" href="/authentication" />
+  <Card title="org CLI reference" icon="terminal" href="/cli-reference/org" />
+</CardGroup>

@@ -3,6 +3,20 @@ title: Installation
 description: Install and configure the TypeScript SDK
 ---
 
+The TypeScript SDK is published to npm as `@bonya-ai/tyto`. It ships ESM
+with bundled type declarations, and talks to Tyto over gRPC — the same
+transport as the CLI.
+
+<Note>
+**Node only.** The transport is gRPC over `@grpc/grpc-js`, which needs
+Node's `http2`. This package does not run in a browser or on edge runtimes.
+</Note>
+
+## Requirements
+
+- Node.js 18 or newer
+- A Tyto API key (`byk_...`)
+
 ## Install
 
 ```bash
@@ -11,21 +25,80 @@ npm install @bonya-ai/tyto
 
 ## Configure
 
+Every option has an environment-variable fallback, so the common case needs
+no arguments at all:
+
 <CodeGroup>
 ```bash Environment variable
-export TYTO_API_KEY=your_key_here
+export BONYA_API_KEY=byk_...
 ```
 
 ```ts Explicit
 import { Tyto } from "@bonya-ai/tyto";
 
-const tyto = new Tyto({ apiKey: "your_key_here" });
+const client = new Tyto({
+  apiKey: "byk_...",
+  endpoint: "https://api.tyto.run",
+});
 ```
 </CodeGroup>
 
-| Option | Env var | Default |
+| Option | Environment variable | Default |
 |---|---|---|
-| `apiKey` | `TYTO_API_KEY` | — (required) |
-| `apiUrl` | `TYTO_API_URL` | `https://api.tyto.run` |
+| `apiKey` | `BONYA_API_KEY` | *required* |
+| `endpoint` | `BONYA_ENDPOINT` | `https://api.tyto.run` |
+| `organizationId` | `BONYA_ORGANIZATION_ID` | your personal organization |
+| `caBundle` | `BONYA_CA_BUNDLE` | system trust store |
+| `timeout` | — | `30` (seconds) |
+| `maxRetries` | — | `2` |
+| `filesystemReadLimit` | — | 64 MiB |
 
-With no options, `new Tyto()` reads `TYTO_API_KEY` and `TYTO_API_URL` from the environment.
+`apiKey` is required — pass it directly or set `BONYA_API_KEY`.
+
+`endpoint` must be an HTTPS URL. The SDK rejects non-HTTPS URLs, URLs with
+userinfo, query strings, fragments, malformed ports, or no host. Point it
+at your own deployment if you self-host.
+
+`caBundle` points to a PEM bundle for private development CAs. If the file
+can't be read, the constructor throws `InvalidRequestError`.
+
+`timeout` is the default per-operation deadline in seconds; buffered and
+streaming exec calls can override it per call. `maxRetries` controls SDK
+retries for retryable control-plane operations (create, get, list, delete,
+resume, snapshot create, snapshot delete). `filesystemReadLimit` caps bytes
+buffered by `sandbox.files.read()`.
+
+<Note>
+An empty `organizationId` (or `BONYA_ORGANIZATION_ID=""`) is an error, not a
+silent fallback to your personal organization — this avoids CI jobs quietly
+running against the wrong tenant when a variable expansion is empty.
+</Note>
+
+Close the client when you're done — open gRPC channels keep Node's event
+loop alive, so a script that never calls `client.close()` will hang instead
+of exiting.
+
+## Quickstart
+
+```ts
+import { Tyto } from "@bonya-ai/tyto";
+
+const client = new Tyto(); // reads BONYA_API_KEY
+try {
+  const sandbox = await client.sandboxes.create({ template: "ubuntu-24.04" });
+  try {
+    const result = await sandbox.exec(["echo", "hello"], { check: true });
+    console.log(result.stdout); // hello
+  } finally {
+    await sandbox.delete();
+  }
+} finally {
+  client.close();
+}
+```
+
+That is a real VM: it boots in about a second, runs anything Linux runs,
+and is gone when `delete()` resolves.
+
+See [Usage](/sdks/typescript/usage) for the full surface — sessions,
+files, previews, snapshots, and error handling.

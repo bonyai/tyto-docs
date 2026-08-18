@@ -1,67 +1,59 @@
 ---
 title: Snapshots
-description: Capture, restore, and fork nest disk state
+description: Capture a sandbox's disk state via the SDKs and CLI
 ---
 
-A **snapshot** captures a nest's disk state so you can restore it later or fork it into a brand-new running nest.
+<Warning>
+Snapshots are **not part of the public REST API**. There is no `/v1/sandbox/{sandbox_id}/snapshots` path or any other snapshot route in the OpenAPI contract — snapshot operations exist only as gRPC calls made through the official SDKs and CLI, and won't appear in the [API Reference](/api-reference) tab.
+</Warning>
+
+A **snapshot** captures a sandbox's disk state. It's identified by a `snapshot_id` and tied to the `source_sandbox_id` it was taken from.
 
 ## Creating a snapshot
 
-`POST /nest/{id}/snapshots`:
+The source sandbox must be **running**. A suspended, failed, or already-deleted sandbox is rejected rather than snapshotted.
 
 <CodeGroup>
-```shell Shell
-tyto snapshot create my-nest --name v1 --description "before migration" --stop-if-running
+```python Python
+snapshot = sandbox.snapshot()
 ```
 
-```shell API
-curl -s -X POST https://api.tyto.run/nest/$NEST_ID/snapshots \
-  -H "Authorization: Bearer $TYTO_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "v1", "description": "before migration", "stop_if_running": true}'
+```go Go
+snapshot, err := client.CreateSnapshot(ctx, sandbox.ID, tyto.SnapshotOptions{
+	IdempotencyKey: "example-snapshot-1",
+})
+```
+
+```shell CLI
+tyto snapshot create web
 ```
 </CodeGroup>
 
-`stop_if_running` stops the nest first if it's currently running, to get a consistent snapshot.
+Both SDKs accept an idempotency key for create, so a retried call returns the same snapshot rather than minting a second one.
 
-Each `Snapshot` reports storage accounting so you can reason about cost and cleanup:
+A `Snapshot` handle carries its `snapshot_id` and the `source_sandbox_id` it came from. Its identity outlives the source sandbox — deleting the sandbox that produced a snapshot is a separate decision from deleting the snapshot itself.
 
-| Field | Meaning |
-|---|---|
-| `logical_dirty_bytes` | Bytes changed since the base image |
-| `apparent_bytes` | Logical size of the snapshot's data |
-| `physical_bytes` | Actual bytes stored on disk |
-| `reclaimable_bytes` | Bytes that could be freed if this snapshot were deleted |
-| `reclaimable_status` | Whether reclaimable accounting is up to date |
-| `index_status` | Whether the snapshot's block index is ready |
+## Deleting a snapshot
 
-`GET /nest/{id}/snapshots` lists all snapshots for a nest as a `SnapshotList`.
-
-## Restoring
-
-`POST /nest/{id}/restore` restores a **stopped** nest from a snapshot:
-
-```json
-{ "snapshot_id": "snap_123" }
+<CodeGroup>
+```python Python
+snapshot.delete()
 ```
 
-## Forking
-
-`POST /nest/{id}/fork` creates a brand-new nest from an existing nest's current disk state, without disturbing the source (unless you ask it to restart):
-
-```json
-{ "name": "my-fork", "stop_if_running": true, "restart_source": true }
+```shell CLI
+tyto snapshot delete web <snapshot-id>
 ```
+</CodeGroup>
 
-The response reports the `copy_method` used and `physical_bytes_added_now` for the new nest's storage.
+Delete is idempotent: calling it again on an already-deleted snapshot is a no-op rather than an error.
 
-## Deleting
-
-`DELETE /snapshots/{snapshot_id}` deletes a snapshot. Pass `?dry_run=true` to preview the effect first — the response reports `can_delete`, `would_free_bytes`, `would_remain_shared_bytes`, and `blocked_by` (anything preventing deletion, such as a fork that still depends on it) without actually deleting.
+<Note>
+There is no list, restore, or fork operation for snapshots anywhere in the current SDKs or CLI. The CLI's `snapshot` command group has only `create` and `delete` subcommands — track `snapshot_id` values yourself if you need to find a snapshot again later.
+</Note>
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Snapshot and fork" icon="camera" href="/guides/snapshot-and-fork" />
-  <Card title="Data CLI reference" icon="database" href="/cli-reference/data" />
+  <Card title="Sandboxes" icon="box" href="/concepts/sandboxes" />
+  <Card title="Snapshot CLI reference" icon="camera" href="/cli-reference/snapshot" />
 </CardGroup>

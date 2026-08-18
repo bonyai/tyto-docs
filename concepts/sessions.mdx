@@ -1,88 +1,138 @@
 ---
 title: Sessions
-description: Run commands inside a nest
+description: Long-lived, named command sessions inside a sandbox
 ---
 
-There are two ways to execute commands in a nest: **managed sessions**, and **one-off/interactive PTYs** using a grant-based prepare flow.
-
-## Managed sessions
-
-`POST /nest/{id}/sessions` starts a command and tracks it as a first-class object you can list, inspect, attach to, and kill:
-
-<CodeGroup>
-```shell Shell
-tyto exec my-nest -- bash -lc 'echo hi'
-```
-
-```shell API
-curl -s -X POST https://api.tyto.run/nest/$NEST_ID/sessions \
-  -H "Authorization: Bearer $TYTO_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"tty": false, "argv": ["bash", "-lc", "echo hi"], "cwd": "/home/tyto", "env": {"FOO": "bar"}}'
-```
-
-```ts TypeScript
-const session = await nest.createSession({
-  tty: false,
-  argv: ["bash", "-lc", "echo hi"],
-  cwd: "/home/tyto",
-  env: { FOO: "bar" },
-});
-```
-
-```python Python
-session = nest.create_session(
-    argv=["bash", "-lc", "echo hi"],
-    tty=False,
-    cwd="/home/tyto",
-    env={"FOO": "bar"},
-)
-```
-</CodeGroup>
-
-A session has a `status` of `running`, `exited`, `killed`, or `lost`, plus `exit_code`, `started_at`/`ended_at`, and `attached` (how many clients are currently streaming its I/O).
-
-- `GET /nest/{id}/sessions` lists sessions (`all=true` includes finished ones, `history=true` includes historical records).
-- `POST /nest/{id}/sessions/{session_id}/attach/prepare` mints a short-lived signed `grant` and a `wss_url` — connect to `wss_url` with the grant to stream the session's I/O. Multiple clients can attach to the same session this way.
-- `POST /nest/{id}/sessions/{session_id}/kill` sends a signal (default `TERM`) and waits up to `grace_ms` (default `5000`) before force-killing.
-
-## Interactive PTYs and one-off exec
-
-For interactive or ad hoc use, two endpoints skip session bookkeeping and instead return a grant for connecting directly to a PTY:
-
-- `POST /nest/{id}/console/prepare` — prepares an interactive shell PTY (used by `tyto console`).
-- `POST /nest/{id}/exec/tty/prepare` — prepares a one-off TTY command (used by `tyto exec --tty`).
-
-Both return a `PTYPrepareResponse`: a signed short-lived `grant`, the `wss_url` to open a WebSocket connection to, and a `session_id`. Connect to `wss_url` and present the `grant` to start streaming.
-
-<CodeGroup>
-```shell API
-curl -s -X POST https://api.tyto.run/nest/$NEST_ID/console/prepare \
-  -H "Authorization: Bearer $TYTO_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"cols": 80, "rows": 24}'
-# => { "grant": "...", "wss_url": "wss://...", "session_id": 42, ... }
-```
-
-```ts TypeScript
-const ws = await nest.console();
-```
-
-```python Python
-with nest.console() as ws:
-    ...
-```
-</CodeGroup>
-
-These PTYs aren't tracked as managed sessions and won't show up in `GET /nest/{id}/sessions`.
+A **session** is a managed, named command running inside a sandbox — distinct from a one-shot [exec](/concepts/exec) call. Sessions are tracked server-side by name, so you can list them, attach to their output, and kill them independently of the connection that created them.
 
 <Note>
-The MCP server does not expose the prepare/grant PTY endpoints as tools, since a long-lived stream doesn't fit a request/response tool call well. Instead it provides `nest_run`, which runs a command in a managed session, redirects output and exit code to files, and reads them back — see [MCP Tools](/mcp/tools).
+Sessions are one of three ways to run commands in a sandbox. For a synchronous, buffered command or an unnamed interactive TTY, see [Exec](/concepts/exec).
 </Note>
+
+## Identity
+
+A session is scoped to a `sandbox_id` and keyed by `session_name`, which must match `^[a-z][a-z0-9-]{0,31}$` — lowercase, starting with a letter, up to 32 characters. There's no separate session ID; the name is the identifier within its sandbox.
+
+## Creating a session
+
+```
+POST /v1/sandbox/{sandbox_id}/sessions
+```
+
+The request body extends the common command shape (`cmd`, `env`, `path`) with session-specific fields:
+
+<ParamField body="name" type="string" required>
+  Session name. Must match `^[a-z][a-z0-9-]{0,31}$`.
+</ParamField>
+<ParamField body="cmd" type="string[]" required>
+  Argv to run. At least one element.
+</ParamField>
+<ParamField body="env" type="object">
+  Environment variables to set.
+</ParamField>
+<ParamField body="path" type="string">
+  Working directory.
+</ParamField>
+<ParamField body="cols" type="integer">
+  Terminal width, 1–512.
+</ParamField>
+<ParamField body="rows" type="integer">
+  Terminal height, 1–512.
+</ParamField>
+<ParamField body="replace" type="boolean" default="false">
+  Whether to replace an existing session of the same name.
+</ParamField>
+
+A successful create returns `201` with `{ "session": { ...SessionInfo } }`.
+
+### Name collisions
+
+<Warning>
+Creating a session whose name collides with a **live** (non-terminal) session returns `409 session_exists`. `replace: true` only takes effect against a session that has already reached a terminal state (`EXITED`, `KILLED`, or `FAILED`) — it does not let you forcibly replace a session that's still running or attached. To replace a running session, kill it first, then create.
+</Warning>
+
+## Session state
+
+Each `SessionInfo` reports:
+
+<ResponseField name="name" type="string" required>
+  The session name.
+</ResponseField>
+<ResponseField name="command" type="string[]" required>
+  The argv the session was started with.
+</ResponseField>
+<ResponseField name="working_dir" type="string" required>
+  The session's working directory.
+</ResponseField>
+<ResponseField name="status" type="string" required>
+  One of `UNSPECIFIED`, `STARTING`, `IDLE`, `ATTACHED`, `EXITED`, `KILLED`, `FAILED`.
+</ResponseField>
+<ResponseField name="attached" type="boolean" required>
+  Whether a client is currently attached.
+</ResponseField>
+<ResponseField name="started_at_unix_nanos" type="integer" required>
+  Start time.
+</ResponseField>
+<ResponseField name="last_activity_unix_nanos" type="integer" required>
+  Last observed activity.
+</ResponseField>
+<ResponseField name="ended_at_unix_nanos" type="integer">
+  End time, once the session has reached a terminal state.
+</ResponseField>
+<ResponseField name="exit" type="object">
+  `{ exit_code, signaled, signal }`, present once the session has exited.
+</ResponseField>
+
+`EXITED`, `KILLED`, and `FAILED` are the terminal states referenced above under name collisions; `STARTING`, `IDLE`, and `ATTACHED` are all live.
+
+## Listing sessions
+
+```
+GET /v1/sandbox/{sandbox_id}/sessions
+```
+
+Returns `SessionListResponse`:
+
+<ResponseField name="sessions" type="SessionInfo[]" required>
+  All sessions tracked for the sandbox.
+</ResponseField>
+<ResponseField name="sandbox_suspended" type="boolean" required>
+  Whether the sandbox was suspended when this list was produced.
+</ResponseField>
+
+<Note>
+Listing sessions **never wakes** a suspended sandbox. If the sandbox is suspended, the response answers from a snapshot of session state taken at suspend time, and `sandbox_suspended` is `true` — it does not resume the sandbox to get a live answer. To act on the sessions themselves, resume the sandbox first (see [Sandboxes](/concepts/sandboxes)).
+</Note>
+
+## Attaching to a session
+
+```
+GET /v1/sandbox/{sandbox_id}/sessions/{session_name}/attach
+```
+
+This is a WebSocket upgrade — see [WebSockets](/concepts/websockets) for how the upgrade, the START frame (`AttachStartRequest`), and admission work. Multiple clients can attach to the same session.
+
+## Killing a session
+
+```
+POST /v1/sandbox/{sandbox_id}/sessions/{session_name}/kill
+```
+
+Request body (`SessionKillRequest`, optional):
+
+<ParamField body="signal" type="string" default="TERM">
+  One of `TERM`, `KILL`, `INT`, `HUP`.
+</ParamField>
+<ParamField body="grace_ms" type="integer" default="5000">
+  Milliseconds to wait after the signal before the session is considered killed, 0–60000.
+</ParamField>
+
+Returns `200` with `{ "session": { ...SessionInfo } }` reflecting the signal having been delivered.
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Run a command" icon="terminal" href="/guides/run-a-command" />
-  <Card title="Sessions CLI reference" icon="terminal" href="/cli-reference/sessions" />
+  <Card title="Sandboxes" icon="box" href="/concepts/sandboxes" />
+  <Card title="Exec" icon="terminal" href="/concepts/exec" />
+  <Card title="WebSockets" icon="bolt" href="/concepts/websockets" />
 </CardGroup>

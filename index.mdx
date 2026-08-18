@@ -3,29 +3,38 @@ title: Introduction
 description: Welcome to the Tyto documentation
 ---
 
-Tyto gives you sandboxed, remote dev environments — called **nests** — that you can create, run commands in, transfer files to and from, expose ports from, and snapshot or fork on demand.
+Tyto gives you sandboxed, remote compute environments — called **sandboxes** — that you can create, run commands in, transfer files to and from, and expose ports from.
 
-Every nest is a full Linux VM you control over a REST API: start it from a template, run commands in a managed session or an interactive shell, upload and download files under `/home/tyto`, share a running port with a preview URL, and snapshot its disk state so you can restore or fork it later.
+Every sandbox is a full Linux VM you control over a REST API: create it from a template, run commands with buffered exec, a live TTY, or a named managed session, upload and download files over its filesystem API, and publish a running port as an HTTPS preview URL. Sandboxes suspend automatically when idle and resume on demand — there's no explicit start, stop, or wake to manage.
 
-You can talk to Tyto directly over HTTPS, through the TypeScript or Python SDK, or from any MCP-compatible client (Claude Desktop, Claude Code, Cursor, …) using the Tyto MCP server.
+You can talk to Tyto directly over HTTPS, through the TypeScript, Python, or Go SDK, from the `tyto` CLI, or from any MCP-compatible client (Claude Desktop, Claude Code, Cursor, …) using the Tyto MCP server.
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
-    Create your first nest and run a command in a few minutes.
+    Create your first sandbox and run a command in a few minutes.
   </Card>
-  <Card title="Core Concepts" icon="cube" href="/concepts/nests">
-    Understand nests, sessions, files, previews, snapshots, and holds.
+  <Card title="Core Concepts" icon="cube" href="/concepts/sandboxes">
+    Understand sandboxes, exec, sessions, files, previews, snapshots, and organizations.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/cli-reference/overview">
+    Install `tyto` and manage sandboxes from the command line.
   </Card>
   <Card title="TypeScript SDK" icon="js" href="/sdks/typescript/installation">
-    Install `@bonya-ai/tyto` and drive nests from Node.
+    Install `@bonya-ai/tyto` and drive sandboxes from Node.
   </Card>
   <Card title="Python SDK" icon="python" href="/sdks/python/installation">
-    Install `tyto.run` and drive nests from Python.
+    Install `tyto.run` and drive sandboxes from Python.
+  </Card>
+  <Card title="Go SDK" icon="golang" href="/sdks/go/installation">
+    Install `github.com/bonyai/tyto-go` and drive sandboxes from Go.
+  </Card>
+  <Card title="Organizations" icon="building" href="/concepts/organizations">
+    Understand personal vs. named organizations and how tenancy works.
   </Card>
   <Card title="MCP Server" icon="plug" href="/mcp/overview">
-    Give any MCP client the ability to manage nests.
+    Give any MCP client the ability to manage sandboxes.
   </Card>
-  <Card title="API Reference" icon="code" href="/api-reference/nests/create-a-nest">
+  <Card title="API Reference" icon="code" href="/api-reference">
     Full REST API reference generated from the OpenAPI spec.
   </Card>
 </CardGroup>

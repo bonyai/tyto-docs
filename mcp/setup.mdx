@@ -11,14 +11,25 @@ npm install -g @bonya-ai/tyto-mcp
 npx @bonya-ai/tyto-mcp
 ```
 
+This installs the `tyto-mcp` executable, which speaks MCP over stdio.
+
 ## Configuration
 
 The server reads its configuration from the environment:
 
 | Env var | Required | Default |
 |---|---|---|
-| `TYTO_API_KEY` | yes | — |
-| `TYTO_API_URL` | no | `https://api.tyto.run` |
+| `BONYA_API_KEY` | yes | — |
+| `BONYA_ENDPOINT` | no | `https://api.tyto.run` |
+| `BONYA_ORGANIZATION_ID` | no | caller's personal organization |
+
+- `BONYA_API_KEY` is a personal API key (`byk_...`), sent as a bearer token on every request.
+- `BONYA_ENDPOINT` overrides the API base URL if you need to point at a non-default environment.
+- `BONYA_ORGANIZATION_ID`, if set, is sent as the `X-Bonya-Organization-ID` header to scope every call to a specific organization instead of your personal one.
+
+<Note>
+The server doesn't validate `BONYA_API_KEY` at startup — it resolves configuration lazily on the first tool call, so the server can start and advertise its tools even before the key is set. A missing or invalid key surfaces as a normal tool error rather than a startup crash.
+</Note>
 
 ## Connect a client
 
@@ -29,7 +40,26 @@ Add the server to your MCP client config:
   "mcpServers": {
     "tyto": {
       "command": "tyto-mcp",
-      "env": { "TYTO_API_KEY": "your_key_here" }
+      "env": {
+        "BONYA_API_KEY": "your_key_here",
+        "BONYA_ENDPOINT": "https://api.tyto.run"
+      }
+    }
+  }
+}
+```
+
+`BONYA_ENDPOINT` is optional — omit it to use the default `https://api.tyto.run`. Add `BONYA_ORGANIZATION_ID` the same way if you need to scope calls to a specific organization:
+
+```json
+{
+  "mcpServers": {
+    "tyto": {
+      "command": "tyto-mcp",
+      "env": {
+        "BONYA_API_KEY": "your_key_here",
+        "BONYA_ORGANIZATION_ID": "your_org_id"
+      }
     }
   }
 }
@@ -38,20 +68,9 @@ Add the server to your MCP client config:
 ### Claude Code
 
 ```bash
-claude mcp add tyto --env TYTO_API_KEY=your_key_here -- tyto-mcp
+claude mcp add tyto --env BONYA_API_KEY=your_key_here -- tyto-mcp
 ```
 
-## Developing against the server
+## Errors
 
-```bash
-npm install
-npm run typecheck
-npm run build          # emits dist/index.js (executable)
-npm run inspect        # launch the MCP Inspector against the built server
-```
-
-Run from source during development:
-
-```bash
-TYTO_API_KEY=your_key_here npm run dev
-```
+Non-2xx responses from the API are surfaced to the MCP client as tool errors, formatted as `Tyto API error <status> (<code>): <detail>` — for example `Tyto API error 409 (session_exists): a live session named "dev" already exists`. `code` and `detail` come from the API's RFC 9457 `application/problem+json` error body; `code` is the stable, machine-readable identifier and is more reliable to branch on than the HTTP status alone.

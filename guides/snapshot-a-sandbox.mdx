@@ -1,0 +1,78 @@
+---
+title: Snapshot a sandbox
+description: Capture a running sandbox's disk state via the SDKs and CLI
+---
+
+<Warning>
+Snapshots are **not part of the public REST API**. There is no `/v1/sandbox/{sandbox_id}/snapshots` path or any other snapshot route in the OpenAPI contract — snapshot operations exist only as gRPC calls made through the official SDKs and CLI, and won't appear in the [API Reference](/api-reference) tab. Every example on this page is CLI or SDK; there is no cURL equivalent.
+</Warning>
+
+A snapshot captures a sandbox's disk state at a point in time. It's identified by its own `snapshot_id`, tied back to the `source_sandbox_id` it was taken from — but its identity outlives that source: you can delete the sandbox that produced a snapshot and keep the snapshot. See [Snapshots](/concepts/snapshots) for the full concept.
+
+<Note>
+There is no restore, fork, or list operation for snapshots in the current SDKs or CLI — only create and delete. If you're looking for how to spin up a new sandbox from a snapshot, that capability doesn't exist yet; track `snapshot_id` values yourself if you need to find one again later.
+</Note>
+
+## Create a snapshot
+
+The source sandbox must be **running** — suspended, failed, or already-deleted sandboxes are rejected rather than snapshotted.
+
+<CodeGroup>
+```shell CLI
+tyto snapshot create web
+```
+
+```python Python
+snapshot = sandbox.snapshot(idempotency_key="snapshot-job-123")
+print(snapshot.id, snapshot.source_sandbox_id)
+```
+
+```ts TypeScript
+const snapshot = await sandbox.snapshot({ idempotencyKey: "snapshot-job-123" });
+console.log(snapshot.id, snapshot.sourceSandboxId);
+```
+
+```go Go
+snapshot, err := sandbox.Snapshot(ctx, tyto.SnapshotOptions{
+	IdempotencyKey: "snapshot-job-123",
+})
+fmt.Println(snapshot.ID, snapshot.SourceSandboxID)
+```
+</CodeGroup>
+
+All three SDKs accept (or auto-generate) an idempotency key for create, so a retried call returns the same snapshot identity rather than minting a second one. If the source sandbox isn't running, the SDKs raise/throw a specific error rather than a generic failure — a suspended source raises `SandboxSuspendedError`, a failed one `SandboxFailedError`, a deleted one `SandboxNotFoundError`/`SandboxDeletedError`.
+
+## Delete a snapshot
+
+Delete is idempotent — calling it again on an already-deleted snapshot is a local no-op, not an error.
+
+<CodeGroup>
+```shell CLI
+tyto snapshot delete web <snapshot-id>
+```
+
+```python Python
+snapshot.delete()
+snapshot.delete()  # no-op
+```
+
+```ts TypeScript
+await snapshot.delete();
+await snapshot.delete(); // no-op
+```
+
+```go Go
+snapshot.Delete(ctx)
+snapshot.Delete(ctx) // no-op
+```
+</CodeGroup>
+
+Because a snapshot's identity outlives its source sandbox, you can delete a snapshot's source sandbox first and its snapshot later — the two are independent decisions.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Snapshots" icon="camera" href="/concepts/snapshots" />
+  <Card title="Sandboxes" icon="box" href="/concepts/sandboxes" />
+  <Card title="Snapshot CLI reference" icon="terminal" href="/cli-reference/snapshot" />
+</CardGroup>

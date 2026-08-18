@@ -1,0 +1,80 @@
+---
+title: create
+description: Create a new sandbox from a template
+---
+
+## `tyto create [name]`
+
+<Info>Aliases: `new`, `c`</Info>
+
+Starts a new sandbox from a template.
+
+```shell
+tyto create --template ubuntu-24.04        # generated name
+tyto create web --template ubuntu-24.04    # named "web"
+```
+
+`--template` is required; there is no default. The name is optional and **positional** — leave it out and the service generates a friendly one (like `swift-otter-9c3f`), which is printed as part of the result. Names are not unique, so two sandboxes can share the same one.
+
+## Flags
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--template` | — | Template to create the sandbox from. **Required.** |
+| `--version` | server default | Template version to use. |
+| `--wait` | `ready` | Either `ready` (block until the sandbox is ready) or `none` (return immediately after the create call is accepted). |
+| `--idempotency-key` | — | Idempotency key for the create request. |
+| `--name` | — | Display name for the sandbox. Prefer the positional form; kept for scripts written against it before the positional form existed. |
+
+### Positional name vs. `--name`
+
+If you pass both a positional name and `--name` and they disagree, `create` fails:
+
+```console
+$ tyto create web --name api --template ubuntu-24.04
+name given twice: "web" and --name "api"
+```
+
+Passing the same value both ways is harmless. In new scripts, prefer the positional form.
+
+## Post-create console offer
+
+On an interactive terminal, once the sandbox is ready `create` offers to open a console in it immediately — press Enter to accept (the prompt defaults to yes):
+
+```console
+$ tyto create --template ubuntu-24.04
+id           sbx-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b
+name         swift-otter-9c3f
+status       running
+template     ubuntu-24.04
+...
+
+Open a console now? (Y/n)
+```
+
+This offer is skipped — and the "open a shell with" hint is printed instead — under any of:
+
+- `--wait none` (the sandbox isn't up yet, so attaching would block on the boot you explicitly asked not to wait for)
+- `--json`
+- `--no-input`
+- a non-interactive session (piped, CI, etc.)
+
+## Examples
+
+<CodeGroup>
+```shell Generated name
+tyto create --template ubuntu-24.04
+```
+
+```shell Explicit name
+tyto create web --template ubuntu-24.04
+```
+
+```shell Don't wait for the sandbox to be ready
+tyto create --template ubuntu-24.04 --wait none
+```
+
+```shell Pin a template version
+tyto create --template ubuntu-24.04 --version 2024.11
+```
+</CodeGroup>

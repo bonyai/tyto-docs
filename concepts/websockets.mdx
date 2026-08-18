@@ -1,0 +1,36 @@
+---
+title: WebSockets
+description: How streaming exec and session attach work over WebSocket
+---
+
+Two endpoints are WebSocket connections rather than plain HTTP request/response. Both are exposed as an HTTP `GET` that upgrades to a WebSocket:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /v1/sandbox/{sandbox_id}/exec` | Transient TTY exec — a one-off interactive command. |
+| `GET /v1/sandbox/{sandbox_id}/sessions/{session_name}/attach` | Attach to an existing, named session. |
+
+A successful connection returns HTTP **`101 Switching Protocols`**, same as any WebSocket upgrade. Anything that would otherwise be a `Problem` error (auth failure, missing sandbox, and so on) is returned as an ordinary `application/problem+json` response instead of a `101`.
+
+## Options travel in the START frame, never the query string
+
+Neither endpoint takes connection options — TTY size, the command to run, environment variables — as query parameters. The upgrade request itself carries only path parameters (`sandbox_id`, `session_name`) and the standard `X-Bonya-Organization-ID` header. Once the connection is upgraded, the client sends a **START frame** as the first message on the socket, and that frame carries the actual options:
+
+- On `.../exec`, the START frame is a `TTYStartRequest`.
+- On `.../sessions/{session_name}/attach`, the START frame is an `AttachStartRequest`.
+
+<Warning>
+Don't put command, environment, or size options in the query string of the upgrade request. The API's design puts all of that in the START frame instead — a query string on these endpoints has nothing to bind to.
+</Warning>
+
+## A `101` is not authorization
+
+Getting a `101 Switching Protocols` response means the WebSocket handshake succeeded — it does not by itself mean your request has been authorized. Per the contract, **admission happens at START**: the server evaluates auth and access when it receives your START frame, after the upgrade has already completed. Don't treat a successful upgrade as confirmation that the call will proceed — wait for the server's response to your START frame before assuming the exec or attach is actually admitted.
+
+## Auth on the upgrade
+
+The upgrade request itself is authenticated the same way as any other sandbox-scoped call: a `personalApiKey` bearer token (or `supabaseJwt`), plus the optional `X-Bonya-Organization-ID` header for org context. That authenticates *the connection*; the admission decision for the specific exec or session-attach action happens afterward, at the START frame, as described above.
+
+## Related
+
+See [Exec](/concepts/exec) for the buffered, non-WebSocket alternative (`POST /v1/sandbox/{sandbox_id}/exec`, JSON in and out, no upgrade involved), and [Sessions](/concepts/sessions) for how named sessions are created and killed.

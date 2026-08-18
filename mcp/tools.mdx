@@ -3,39 +3,254 @@ title: Tools
 description: Tools exposed by the Tyto MCP server
 ---
 
-| Tool | Description |
-|---|---|
-| `tyto_whoami` | Return the signed-in user |
-| `tyto_health` | Liveness check |
-| `nest_create` | Create and start a nest |
-| `nest_list` | List nests |
-| `nest_get` | Inspect a nest |
-| `nest_delete` | Delete a nest |
-| `nest_start` | Start a stopped nest |
-| `nest_stop` | Stop a running nest |
-| `nest_wake` | Wake a suspended/stopped nest |
-| `nest_lifecycle` | Get lifecycle state |
-| `nest_run` | Run a command and return its output |
-| `nest_write_file` | Write text content to a file |
-| `nest_read_file` | Read a file's text |
-| `nest_upload` | Upload a local file or directory |
-| `nest_download` | Download a file or directory locally |
-| `session_list` | List managed sessions |
-| `session_kill` | Kill a managed session |
-| `preview_create` | Create a preview URL |
-| `preview_list` | List previews for a nest |
-| `preview_get` | Inspect a preview |
-| `preview_revoke` | Revoke a preview |
-| `snapshot_create` | Create a snapshot |
-| `snapshot_list` | List snapshots |
-| `snapshot_delete` | Delete a snapshot (supports dry-run) |
-| `nest_restore` | Restore a nest from a snapshot |
-| `nest_fork` | Fork a nest into a new one |
-| `hold_list` | List keepalive holds |
-| `hold_put` | Create/replace a keepalive hold |
-| `hold_heartbeat` | Extend a keepalive hold |
-| `hold_delete` | Delete a keepalive hold |
+The server registers 14 tools across four groups: sandboxes, exec & filesystem, sessions, and previews.
 
 <Note>
-Tyto's grant-based PTY endpoints (`console/prepare`, `exec/tty/prepare`, session `attach/prepare`) are not exposed as tools, since each returns a signed grant plus a `wss_url` meant for an interactive WebSocket connection, not a single request/response tool call. `nest_run` provides run-and-return execution instead: it runs your command in a managed session, redirects output and exit code to files, then reads them back over the filesystem API. This is reliable for both short and long-running commands, unlike a live attach stream in a tool-call context. It returns the combined stdout+stderr followed by an `[exit code: N]` line.
+Results are returned as pretty-printed JSON text. Errors are returned as MCP tool errors (`isError: true`) formatted as `Tyto API error <status> (<code>): <detail>`, using the `code`/`detail` fields from the API's RFC 9457 problem+json error body.
+</Note>
+
+## Sandboxes
+
+### `sandbox_create`
+
+Create a new sandbox — an isolated cloud compute environment — from a template. By default returns immediately with the sandbox in `CREATING` state (HTTP 202); pass `wait=true` to block until it's ready (HTTP 201).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `template_id` | string | yes | Template to create the sandbox from, e.g. `"ubuntu-24.04"`. There is no template-listing endpoint; use a known template id. |
+| `template_version` | string | no | Specific template version. Defaults to the template's latest. |
+| `name` | string (max 80) | no | Display label. Not unique — every lookup is by `sandbox_id`. |
+| `wait` | boolean | no | If true, block until the sandbox is ready instead of returning immediately. |
+
+**Returns:** the sandbox envelope (`{ sandbox: {...} }`) including `sandbox_id`, `operation_id`, `template_id`, `template_version`, `state`, and optional `name`/`failure_code`/`failure_message`.
+
+### `sandbox_list`
+
+List sandboxes, optionally filtered by state or exact-match name. Paginated.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `page_size` | integer (1-100) | no | Page size. Default 50. |
+| `page_token` | string | no | Pagination token from a previous response. |
+| `states` | array of enum | no | Filter to these states: `CREATING`, `RUNNING`, `SUSPENDING`, `SUSPENDED`, `RESUMING`, `FAILED`. `DELETED` sandboxes are not filterable. |
+| `name` | string | no | Exact-match name filter. Names are not unique, so this can match more than one sandbox. |
+
+**Returns:** `{ sandboxes: [...], next_page_token? }`.
+
+### `sandbox_get`
+
+Fetch the current state of a single sandbox by id.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id (e.g. as returned by `sandbox_create` or `sandbox_list`). |
+
+**Returns:** the sandbox envelope (`{ sandbox: {...} }`).
+
+### `sandbox_delete`
+
+Permanently and synchronously delete a sandbox. Deleting an already-deleted sandbox succeeds (idempotent). This cannot be undone.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+
+**Returns:** `{ ok: true, deleted: "<sandbox_id>" }`.
+
+### `sandbox_resume`
+
+Resume a suspended sandbox. Suspension happens automatically; this is the only explicit lifecycle verb — there's no separate start/stop/wake. Resuming an already-running sandbox succeeds and reports `already_running: true`.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+
+**Returns:** `{ sandbox_id, already_running }`.
+
+## Exec & filesystem
+
+### `sandbox_exec`
+
+Run a command in a sandbox and wait for it to finish (buffered, non-interactive). Returns exit code, stdout, and stderr. For long-running or interactive processes, use `session_create` instead.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+| `cmd` | array of string (min 1) | yes | Command and arguments, e.g. `["bash","-lc","echo hi"]` or `["ls","-la"]`. |
+| `path` | string | no | Working directory inside the sandbox. |
+| `env` | object (string → string) | no | Extra environment variables. |
+| `timeout_s` | integer (1-300) | no | Max seconds to wait for the command to finish. |
+| `stdin_b64` | string | no | Base64-encoded bytes to write to the command's stdin. |
+| `output_encoding` | enum: `utf8`, `base64` | no | Encoding for the returned stdout/stderr. Defaults to `utf8`. |
+
+**Returns:** `{ exit_code, signaled, signal?, timed_out, stdout, stderr, stdout_truncated, stderr_truncated, output_encoding }`.
+
+### `fs_read`
+
+Read a file's raw bytes from a sandbox and return its UTF-8 text content.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+| `path` | string | yes | Path to read inside the sandbox. |
+
+**Returns:** the file's contents as a UTF-8 string.
+
+### `fs_write`
+
+Write UTF-8 text content to a file in a sandbox, creating or overwriting it.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+| `path` | string | yes | Destination path inside the sandbox. |
+| `content` | string | yes | UTF-8 text content to write. |
+
+**Returns:** `{ ok: true, path, bytes }`.
+
+### `fs_list`
+
+List the entries of a directory in a sandbox.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+| `path` | string | yes | Directory path inside the sandbox. |
+
+**Returns:** `{ files: [{ path, name, kind, size, mode, modified_at_unix_nanos }, ...] }`.
+
+### `fs_stat`
+
+Get metadata (kind, size, mode, modified time) for a path in a sandbox.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+| `path` | string | yes | Path inside the sandbox. |
+
+**Returns:** `{ file: { path, name, kind, size, mode, modified_at_unix_nanos } }`.
+
+### `fs_mkdir`
+
+Create a directory (and any missing parents) in a sandbox.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+| `path` | string | yes | Directory path to create inside the sandbox. |
+
+**Returns:** `{ ok: true, path }`.
+
+### `fs_rename`
+
+Rename or move a file or directory within a sandbox.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+| `from` | string | yes | Existing path inside the sandbox. |
+| `to` | string | yes | New path inside the sandbox. |
+
+**Returns:** `{ ok: true, from, to }`.
+
+### `fs_delete`
+
+Delete a file or directory in a sandbox. Pass `recursive=true` to delete a non-empty directory.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+| `path` | string | yes | Path to delete inside the sandbox. |
+| `recursive` | boolean | no | Delete directories recursively. Default false. |
+
+**Returns:** `{ ok: true, deleted: path }`.
+
+## Sessions
+
+Sessions are named, long-lived background processes — the counterpart to `sandbox_exec` for anything that needs to keep running (dev servers, watchers, long jobs) rather than block on a single request.
+
+### `session_create`
+
+Create a named, long-lived session running a command in a sandbox. Unlike `sandbox_exec`, the session keeps running in the background; use `session_list` to check on it and `session_kill` to stop it. Creating a session with a name that already has a live session fails with `session_exists` (409) unless `replace` is set, which replaces a terminal (finished) session of the same name.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+| `name` | string | yes | Session name, unique per sandbox. Must match `^[a-z][a-z0-9-]{0,31}$` — starts with a lowercase letter, only lowercase letters/digits/hyphens, max 32 chars. |
+| `cmd` | array of string (min 1) | yes | Command and arguments, e.g. `["bash","-lc","npm run dev"]`. |
+| `path` | string | no | Working directory inside the sandbox. |
+| `env` | object (string → string) | no | Extra environment variables. |
+| `cols` | integer (1-512) | no | Terminal columns. |
+| `rows` | integer (1-512) | no | Terminal rows. |
+| `replace` | boolean | no | Replace an existing terminal (finished) session of the same name. |
+
+**Returns:** `{ session: { name, command, working_dir, status, attached, started_at_unix_nanos, last_activity_unix_nanos, ended_at_unix_nanos?, exit? } }`.
+
+### `session_list`
+
+List sessions for a sandbox. Never wakes a suspended sandbox — a suspended sandbox answers from its suspend snapshot, indicated by `sandbox_suspended: true` in the response.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+
+**Returns:** `{ sessions: [...], sandbox_suspended }`.
+
+### `session_kill`
+
+Terminate a named session. Sends a signal (default `TERM`) and, after `grace_ms`, escalates. Returns the session's resulting state.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+| `session_name` | string | yes | Session name (same format as `session_create`'s `name`). |
+| `signal` | enum: `TERM`, `KILL`, `INT`, `HUP` | no | Signal to send. Default `TERM`. |
+| `grace_ms` | integer (0-60000) | no | Grace period before escalation, in ms. Default 5000. |
+
+**Returns:** `{ session: {...} }`.
+
+## Previews
+
+### `preview_create`
+
+Create a preview URL that proxies to a port inside a sandbox, so a running service can be reached over the web.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+| `port` | integer (1024-65535) | yes | Port inside the sandbox to expose. |
+| `auth_mode` | enum: `token`, `public` | no | `token` (default) requires the Roxy token exchange; `public` is open. |
+| `name` | string (max 80 UTF-8 bytes) | no | Display name — metadata only. |
+
+**Returns:** the preview object (`preview_id`, `sandbox_id`, `port`, `auth_mode`, `name?`, `url`, `created_at_unix_nanos`).
+
+<Warning>
+The underlying API response also includes a one-time `capability_jws` capability token used for the browser token-exchange flow. This tool deliberately drops it from the result before returning — it's sensitive and isn't needed to reach the token-free `url`. Only the plain `url` is returned to the caller.
+</Warning>
+
+### `preview_list`
+
+List all previews for a sandbox. Never returns capability tokens.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+
+**Returns:** `{ previews: [...] }`.
+
+### `preview_delete`
+
+Delete a preview by id, immediately disabling its URL. Idempotent.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | yes | The sandbox id. |
+| `preview_id` | string | yes | The preview id (e.g. `pv-...`). |
+
+**Returns:** `{ ok: true, deleted: "<preview_id>" }`.
+
+## Not exposed as tools
+
+<Note>
+The API's WebSocket endpoints (TTY `exec`, session `attach`) are not exposed as tools — they don't fit a request/response MCP tool. `sandbox_exec` covers non-interactive commands via the buffered `POST .../exec` endpoint; `session_create` covers long-running background processes. Sandboxes suspend automatically; `sandbox_resume` is the only explicit lifecycle verb (there is no separate start/stop). Snapshots are managed exclusively through the gRPC SDK and have no REST endpoints, so they are out of scope for this server.
 </Note>

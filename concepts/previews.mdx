@@ -1,44 +1,101 @@
 ---
 title: Previews
-description: Expose a port running inside a nest over HTTPS
+description: Expose a port running inside a sandbox as an HTTPS URL
 ---
 
-A **preview** exposes a port inside a nest as an HTTPS URL, so you can view a dev server, API, or any other listener from a browser.
+A **preview** exposes a port inside a sandbox as an HTTPS URL, so you can view a dev server, API, or any other listener from a browser.
 
-`POST /nest/{id}/previews` creates one:
+## Creating a preview
 
-<CodeGroup>
-```shell Shell
-tyto preview my-nest --port 3000 --name web
+```
+POST /v1/sandbox/{sandbox_id}/previews
 ```
 
-```shell API
-curl -s -X POST https://api.tyto.run/nest/$NEST_ID/previews \
-  -H "Authorization: Bearer $TYTO_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"port": 3000, "auth": "private", "name": "web"}'
+Request body (`PreviewCreateRequest`):
+
+<ParamField body="port" type="integer" required>
+  Port to expose, 1024–65535.
+</ParamField>
+<ParamField body="auth_mode" type="string" default="token">
+  `token` or `public` (see below).
+</ParamField>
+<ParamField body="name" type="string">
+  Display metadata only, at most 80 UTF-8 bytes.
+</ParamField>
+
+Create also accepts an `Idempotency-Key` header — see [Idempotency](/concepts/idempotency).
+
+Returns `201` with `PreviewCreateResponse`:
+
+<ResponseField name="preview" type="object" required>
+  The created `Preview` (see fields below).
+</ResponseField>
+<ResponseField name="capability_jws" type="string" required>
+  A capability token for the token-mode browser exchange described below.
+</ResponseField>
+
+<Warning>
+`capability_jws` is returned **only by create** — it is never included in the list response. Store it if you need the token-mode exchange; there's no way to retrieve it again later. This is a deliberate security property, not an oversight.
+</Warning>
+
+### Preview fields
+
+<ResponseField name="preview_id" type="string" required>
+  Matches `^pv-[a-z2-7]{26}$`.
+</ResponseField>
+<ResponseField name="sandbox_id" type="string" required>
+  The owning sandbox.
+</ResponseField>
+<ResponseField name="port" type="integer" required>
+  The exposed port, 1024–65535.
+</ResponseField>
+<ResponseField name="auth_mode" type="string" required>
+  `token` or `public`.
+</ResponseField>
+<ResponseField name="name" type="string">
+  Display metadata only, at most 80 UTF-8 bytes.
+</ResponseField>
+<ResponseField name="url" type="string" required>
+  Token-free base preview URL.
+</ResponseField>
+<ResponseField name="created_at_unix_nanos" type="integer" required>
+  Creation time.
+</ResponseField>
+
+## Auth modes
+
+`auth_mode` is one of two values — not `private`/`public`:
+
+- **`token`** (default) — access is gated by the Roxy browser exchange described below.
+- **`public`** — anyone with the URL can view it; no exchange required.
+
+### The token-mode browser exchange
+
+In `token` mode, the client navigates once to `preview.url` with `?bonya_token=<capability_jws>` appended. Roxy (the preview proxy) validates the token, sets a host-scoped `Secure`, `HttpOnly` cookie, and redirects to the same URL with `bonya_token` stripped — before any guest content is rendered. After that one exchange, the cookie carries the session; the token itself should not be stored in URLs or logs beyond that single navigation.
+
+## Listing previews
+
 ```
-</CodeGroup>
+GET /v1/sandbox/{sandbox_id}/previews
+```
 
-- `port` must be between 1024 and 65535.
-- `auth` is `private` (requires a Tyto session to view) or `public` (anyone with the URL can view). The `public` boolean field mirrors this.
-- The response includes `url` (or `path_url`) to open, and `expires_in` seconds until the preview token expires.
+Returns `PreviewListResponse`: `{ "previews": [ ...Preview ] }`. As noted above, list **never** includes `capability_jws` — only create does.
 
-## Managing previews
+## Deleting a preview
 
-- `GET /nest/{id}/previews` lists previews for a nest; `GET /previews/{id}` inspects one by ID.
-- `DELETE /previews/{id}` revokes a preview immediately (sets `revoked_at`).
+```
+DELETE /v1/sandbox/{sandbox_id}/previews/{preview_id}
+```
 
-## How browser traffic reaches a preview
+<Note>
+Delete is idempotent and deliberately avoids leaking cross-org existence — deleting a preview that doesn't exist (or belongs to another organization) behaves the same as deleting one that does, rather than distinguishing the two cases.
+</Note>
 
-Two unauthenticated endpoints handle the browser side of a preview, and you generally won't call them directly — they're what the preview `url` points to:
-
-- `GET /preview/{id}/_exchange` exchanges a short-lived preview token (`t`) for a browser session, then redirects to `next`.
-- `GET /preview/{id}/{path}` proxies the actual request through to the service running on the nest's port.
+Returns `204` on success.
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Expose a preview" icon="link" href="/guides/expose-a-preview" />
-  <Card title="Everyday CLI reference" icon="bolt" href="/cli-reference/everyday" />
+  <Card title="Sandboxes" icon="box" href="/concepts/sandboxes" />
+  <Card title="Idempotency" icon="rotate" href="/concepts/idempotency" />
 </CardGroup>

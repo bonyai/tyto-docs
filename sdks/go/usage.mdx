@@ -1,0 +1,550 @@
+---
+title: Usage
+description: Sandboxes, exec, sessions, files, previews, and snapshots from Go
+---
+
+Every sandbox operation on `client.Sandboxes` also has a flat form
+directly on `Client` — `client.CreateSandbox(ctx, template)`,
+`client.GetSandbox(ctx, id)`, `client.ListSandboxes(ctx)`,
+`client.DeleteSandbox(ctx, id)`, `client.ResumeSandbox(ctx, id)` — for
+callers who'd rather call a verb than navigate a namespace. Both spellings
+are the same implementation.
+
+Sessions, previews, and snapshots have flat forms too
+(`client.CreateSession(ctx, sandboxID, name, cmd)`,
+`client.CreatePreview(ctx, sandboxID, port)`,
+`client.CreateSnapshot(ctx, sandboxID)`, and so on), but each does a
+`GetSandbox` first and then delegates — one extra round trip compared to
+already holding a `*Sandbox` handle. Prefer `sandbox.Sessions.Create(...)`
+(or the equivalent) when a `*Sandbox` is already in hand; reach for the
+flat form when all you have is an id.
+
+## Create sandboxes
+
+```go
+sandbox, err := client.Sandboxes.Create(ctx, "ubuntu-24.04", tyto.CreateOptions{
+	Wait:           tyto.WaitReady,
+	IdempotencyKey: "create-job-123",
+})
+```
+
+`Sandboxes.Create(ctx, template, opts...)` returns a `*Sandbox`.
+
+| Field | Type | Description |
+|---|---|---|
+| `template` (positional) | `string` | Required, non-empty. |
+| `CreateOptions.Version` | `string` | Template version. Server default when empty. |
+| `CreateOptions.Wait` | `Wait` | Defaults to `WaitReady`. |
+| `CreateOptions.IdempotencyKey` | `string` | Generated and reused for transport retries if empty. |
+| `CreateOptions.Name` | `string` | Optional display name, at most 80 bytes. Server generates a friendly one when empty. Names are not unique. |
+
+`WaitReady` asks the service to return a running sandbox —
+`LastObservedStatus == StatusRunning`. `WaitNone` returns as soon as the
+service accepts the request — `LastObservedStatus == StatusCreating`.
+
+If create exhausts its deadline, the SDK returns a
+`*SandboxCreationTimeoutError`, carrying the `IdempotencyKey` used so you
+can retry the same creation rather than starting a second sandbox.
+
+Sandbox fields: `sandbox.ID`, `.OperationID`, `.Template`, `.Version`,
+`.LastObservedStatus`.
+
+## Get, list, and get by name
+
+```go
+sandbox, err := client.Sandboxes.Get(ctx, "sbx_123")
+
+summaries, err := client.Sandboxes.List(ctx, tyto.ListOptions{
+	States: []tyto.Status{tyto.StatusRunning, tyto.StatusSuspended},
+	Limit:  20,
+})
+for _, summary := range summaries {
+	fmt.Println(summary.ID, summary.LastObservedStatus)
+}
+
+byName, err := client.Sandboxes.GetByName(ctx, "web-server")
+```
+
+`Get(ctx, sandboxID)` requires a non-empty id and returns a usable
+`*Sandbox` handle. It does **not** explicitly resume the sandbox — exec
+and filesystem calls are what wake a suspended one.
+
+<Note>
+Unlike the TypeScript and Python SDKs, Go's `List` returns a plain
+`[]SandboxSummary` slice, not a lazy iterator — Go has no generator
+protocol as natural as Python's iterators or JS's async iterables, so the
+Go SDK exposes a single "collect all matching, up to `Limit`" call and
+pages internally. `ListOptions.Limit` bounds how much work `List` does;
+`Limit: 0` (the default) fetches every matching sandbox.
+</Note>
+
+`ListOptions.Name` filters to sandboxes carrying an exact display name
+(names aren't unique, so this can still match more than one). Valid
+`States` filters are `StatusCreating`, `StatusRunning`,
+`StatusSuspending`, `StatusSuspended`, `StatusResuming`, and
+`StatusFailed` — `StatusDeleted` is not a valid filter. A `SandboxSummary`
+has `ID`, `OperationID`, `Template`, `Version`, `LastObservedStatus`,
+`FailureCode`, `FailureMessage` — it cannot run Exec; call
+`Get(ctx, summary.ID)` first.
+
+`GetByName(ctx, name)` resolves a display name to a single sandbox. Names
+are not unique: if more than one sandbox carries the name, it returns an
+error rather than picking one (a later `Delete` could otherwise destroy
+the wrong sandbox) — use `List` with `ListOptions{Name: ...}` and decide
+yourself, which is what the `tyto` CLI does when it prompts.
+
+## Delete and cleanup
+
+```go
+result, err := sandbox.Delete(ctx)
+fmt.Println(result.SandboxID, result.AlreadyDeleted)
+```
+
+`sandbox.Delete(ctx)` returns `*DeleteResult{SandboxID, AlreadyDeleted}`.
+Calling it again on the same `*Sandbox` is local and idempotent — no
+second RPC.
+
+```go
+sandbox, err := client.Sandboxes.Create(ctx, "ubuntu-24.04")
+if err != nil {
+	log.Fatal(err)
+}
+defer sandbox.Delete(ctx)
+```
+
+## Resume
+
+```go
+resume, err := sandbox.Resume(ctx, tyto.ResumeOptions{IdempotencyKey: "resume-job-123"})
+fmt.Println(resume.SandboxID, resume.LifecycleOperationID, resume.AlreadyRunning)
+```
+
+`sandbox.Resume(ctx, opts...)` returns `*ResumeResult` and updates the
+sandbox's private exec endpoint/capability, setting `LastObservedStatus`
+to `StatusRunning`. `Resume` on a failed sandbox returns a
+`*SandboxFailedError` locally, before any RPC.
+
+Explicit resume is different from automatic wake: `Get` never calls
+`Resume`, and ordinary exec/filesystem calls don't make a public
+`ResumeSandbox` RPC — they hit the sandbox's guest endpoint directly, and
+the service may wake it behind that route.
+
+## Exec vs ExecStream
+
+`Exec` buffers output and returns once the process exits — good for
+short, bounded commands. `ExecStream` yields events as they happen — use
+it for large output, long-running commands, interactive stdin, or
+cancellation. Both are one-shot: the remote process ends when the call (or
+stream) ends. This is different from [managed sessions](#managed-console-sessions),
+which keep running after you disconnect.
+
+### Buffered exec
+
+```go
+result, err := sandbox.Exec(ctx, []string{"python3", "-c", "import os; print(os.environ['MODE'])"}, tyto.ExecOptions{
+	Env:     map[string]string{"MODE": "development"},
+	Cwd:     "/workspace",
+	Timeout: 10 * time.Second,
+})
+
+fmt.Println(result.Stdout(), result.Stderr(), result.ExitCode, result.OK())
+```
+
+```go
+func (s *Sandbox) Exec(ctx context.Context, command any, opts ...ExecOptions) (*ExecResult, error)
+```
+
+`command` accepts either a `string` (run as `["/bin/sh", "-c", command]`)
+or a `[]string` (run directly; must be non-empty with no empty entries).
+
+```go
+type ExecOptions struct {
+	Env     map[string]string
+	Cwd     string
+	TTY     bool
+	Cols    int
+	Rows    int
+	Timeout time.Duration
+	Check   bool  // calls ExecResult.Check before Exec returns; ignored by ExecStream
+	Input   []byte // written to stdin, then half-closed; requires TTY: false; ignored by ExecStream
+}
+```
+
+`Env` overlays string env vars (keys can't contain `=` or NUL). `Cwd` sets
+the remote working directory.
+
+`*ExecResult` exposes `StdoutBytes`/`StderrBytes` (`[]byte`),
+`Stdout()`/`Stderr()` (UTF-8 with replacement for invalid bytes),
+`ExitCode`, `Signaled`, `Signal`, `OK()` (`ExitCode == 0 && !Signaled`),
+and `String()` (same as `Stdout()`).
+
+`ExecOptions.Check: true` calls `result.Check()` before returning; on a
+non-ok result, `Exec` returns `*ExecFailedError`, with the original result
+at `error.Result`:
+
+```go
+result, err := sandbox.Exec(ctx, []string{"false"}, tyto.ExecOptions{Check: true})
+var execErr *tyto.ExecFailedError
+if errors.As(err, &execErr) {
+	fmt.Println(execErr.Result.ExitCode)
+}
+```
+
+### Streaming exec
+
+```go
+session, err := sandbox.ExecStream(ctx, []string{"bash", "-lc", "echo out; echo err >&2"})
+if err != nil {
+	log.Fatal(err)
+}
+defer session.Close()
+
+for {
+	event, err := session.Next()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if event == nil {
+		break // stream ended cleanly after Exit
+	}
+	switch e := event.(type) {
+	case tyto.Stdout:
+		fmt.Print("stdout: ", string(e.Data))
+	case tyto.Stderr:
+		fmt.Print("stderr: ", string(e.Data))
+	case tyto.Exit:
+		fmt.Println("exit:", e.ExitCode)
+	}
+}
+```
+
+```go
+func (s *Sandbox) ExecStream(ctx context.Context, command any, opts ...ExecOptions) (*ExecSession, error)
+```
+
+`command`, `Env`, `Cwd`, `TTY`, `Cols`, `Rows`, and `Timeout` follow the
+same rules as buffered Exec. Call `session.Next()` repeatedly to receive
+`Stdout`, `Stderr`, and `Exit` events until it returns `(nil, nil)`.
+
+Write stdin with `session.Write(data []byte)` — returns
+`*InvalidRequestError` after the session or stdin is closed.
+`session.CloseStdin()` is idempotent. `session.Cancel()` is idempotent and
+sends a cancel frame when possible. `session.Close()` cancels an
+unfinished session — call it via `defer`. Internally the SDK uses a
+background reader goroutine feeding a buffered event channel per gRPC
+stream, replacing Python's queue+thread+condvar approach. If `Next`
+reaches the session deadline before the next event, the SDK cancels the
+remote exec and returns `*TimeoutError`.
+
+### TTY exec
+
+Set `TTY: true` for terminal semantics — stdout and stderr share the
+terminal stream, so the SDK returns terminal output as `Stdout()` and
+leaves `Stderr()` empty. Default dimensions are 80x24 (sent on the wire as
+`cols=0, rows=0`). Provide both `Cols` and `Rows` together to override —
+each must be an integer from 1 through 512, and both require `TTY: true`.
+Buffered `Input` isn't allowed with `TTY: true`; use `ExecStream` and
+`session.Write(...)` instead. Resize an active TTY stream with
+`session.Resize(cols, rows)`.
+
+## Managed console sessions
+
+Every `*Sandbox` has `sandbox.Sessions`, a `*SandboxSessions` for named,
+persistent command sessions that **outlive the client connection**. This
+is the key distinction from `ExecStream`: an exec process dies when its
+stream closes, but a managed session keeps running detached, and you can
+reattach later — even after the sandbox warm-suspends and resumes — and
+replay what it produced while nobody was watching. Use `Exec`/`ExecStream`
+for one-shot commands; use `Sessions` for long-lived terminals like dev
+servers you want to detach from and come back to.
+
+```go
+info, err := sandbox.Sessions.Create(ctx, "server", []string{"bash"}, tyto.CreateSessionOptions{Cols: 120, Rows: 40})
+
+stream, err := sandbox.Sessions.Attach(ctx, "server")
+stream.Write([]byte("npm run dev\n"))
+stream.Resize(140, 45)
+for {
+	event, err := stream.Next()
+	if err != nil || event == nil {
+		break
+	}
+}
+stream.Detach()
+
+result, err := sandbox.Sessions.List(ctx)
+for _, info := range result.Sessions {
+	fmt.Println(info.Name, info.Status)
+}
+
+sandbox.Sessions.Kill(ctx, "server")
+```
+
+**Create**
+
+```go
+func (s *SandboxSessions) Create(ctx context.Context, name string, command []string, opts ...CreateSessionOptions) (SessionInfo, error)
+```
+
+`name` must match `^[a-z][a-z0-9-]{0,31}$`. `command` is a non-empty slice
+of non-empty strings (no shell-string convenience like `Exec`).
+`CreateSessionOptions` has `Env`, `Cwd`, `Cols`, `Rows`, and `Replace`.
+Creating over an existing record returns `*SessionExistsError` unless
+`Replace: true` — and even then, only a terminal record
+(exited/killed/failed) is replaced; a running or attached session is
+never replaced.
+
+**List** — `Sessions.List(ctx)` returns `SessionList{Sessions
+[]SessionInfo, SandboxSuspended bool}`. Listing works on a suspended
+sandbox without waking it.
+
+**Attach** — `Sessions.Attach(ctx, name, opts...)` with
+`AttachOptions{Cols, Rows, MaxReplayBytes}` returns `*SessionStream`.
+`stream.Info`, `.ReplayedBytes`, `.HistoryDropped` describe the bounded
+replay from while you were detached (the replay ring is 1 MiB). Attaching
+preempts any other attached client — the loser gets
+`SessionEnded{Reason: SessionEndedReasonTakeover}`. Attaching to a
+suspended sandbox's session wakes it.
+
+`stream.Next()` yields: `Stdout{Data []byte}` (merged output — sessions
+are TTY-only, no separate stderr), `Exit{ExitCode, Signaled, Signal}`,
+`SessionEnded{Reason}` (`SessionEndedReasonDetached` or
+`SessionEndedReasonTakeover`), `SessionOutputDropped{DroppedBytes}`
+(client reading too slowly; doesn't end the attach).
+
+`stream.Write(data)`, `stream.Resize(cols, rows)` (1–512 per dimension),
+`stream.Detach()` (ends gracefully, process keeps running),
+`stream.Close()` (calls `Detach` if still open — call it via `defer`).
+
+**Kill** — `Sessions.Kill(ctx, name, opts...)` with
+`KillOptions{Signal, GraceMS}` signals the process group (`Signal`
+defaults to `"TERM"`), escalating to `SIGKILL` after `GraceMS` (defaults
+to 5000 when 0) if it hasn't exited. Returns `SessionInfo`, but exit info
+isn't guaranteed on that response — `Kill` doesn't wait for the guest to
+reap the process, so a `List` shortly after is the reliable way to see the
+final exit code. Killing an unknown name returns `*SessionNotFoundError`.
+
+`SessionInfo`: `Name`, `Command` (`[]string`), `WorkingDir`, `Status`,
+`Attached`, `StartedAt`, `LastActivityAt`, `EndedAt` (zero value while
+running), `Exit` (non-nil only once terminal). `SessionStatus` values:
+`SessionStatusUnspecified`, `SessionStatusStarting`, `SessionStatusIdle`,
+`SessionStatusAttached`, `SessionStatusExited`, `SessionStatusKilled`,
+`SessionStatusFailed`.
+
+A session's process never blocks idle suspend by itself — only an
+*attached* stream does. A quiet, detached session lets the sandbox
+warm-suspend and survives the resume with process and replay buffer
+intact.
+
+## Files
+
+Every `*Sandbox` has `sandbox.Files`, a `*SandboxFiles`:
+
+```go
+sandbox.Files.Write(ctx, "/workspace/message.txt", []byte("hello\n"))
+payload, err := sandbox.Files.Read(ctx, "/workspace/message.txt")
+
+sandbox.Files.Upload(ctx, "local-input.bin", "/workspace/input.bin")
+sandbox.Files.Download(ctx, "/workspace/input.bin", "local-output.bin")
+
+entries, err := sandbox.Files.List(ctx, "/workspace")
+info, err := sandbox.Files.Stat(ctx, "/workspace/message.txt")
+
+sandbox.Files.Mkdir(ctx, "/workspace/output")
+sandbox.Files.Move(ctx, "/workspace/message.txt", "/workspace/output/message.txt")
+sandbox.Files.Remove(ctx, "/workspace/output", true) // recursive
+```
+
+| Method | Signature |
+|---|---|
+| `Read` | `(ctx, path string) ([]byte, error)` |
+| `Write` | `(ctx, path string, data []byte) error` |
+| `Upload` | `(ctx, localPath, remotePath string) error` |
+| `Download` | `(ctx, remotePath, localPath string) error` |
+| `List` | `(ctx, path string) ([]FileInfo, error)` |
+| `Stat` | `(ctx, path string) (FileInfo, error)` |
+| `Mkdir` | `(ctx, path string) error` |
+| `Remove` | `(ctx, path string, recursive bool) error` |
+| `Move` | `(ctx, source, destination string) error` |
+
+`Read` buffers the whole file and returns `*FilesystemLimitError` before
+exceeding the configured filesystem read limit. `Write` streams in 64 KiB
+chunks through a guest-side temp file and publishes atomically; a symlink
+at the final path is not followed. `Upload`/`Download` stream in 64 KiB
+chunks; `Download` uses a temp file, fsync, and atomic `os.Rename`. `List`
+returns immediate children sorted by name, or an error — no partial
+results. `Stat` returns lstat-style metadata (a final symlink is reported
+as a symlink, not followed). `Move` is same-filesystem, atomic,
+no-overwrite — cross-filesystem returns `*CrossFilesystemMoveError`,
+existing destination returns `*RemoteFileExistsError`. `Remove(ctx, path, true)`
+recurses without following symlinks and is not atomic.
+
+`FileInfo` fields: `Path`, `Name`, `Kind` (`FileKindFile` /
+`FileKindDirectory` / `FileKindSymlink` / `FileKindOther`), `Size`,
+`Mode`, `ModifiedAt` (`time.Time`).
+
+## Preview URLs
+
+A preview publishes one guest port at an HTTPS URL a browser can open. The
+server must bind a port in 1024–65535; privileged ports are never
+previewable.
+
+```go
+preview, err := sandbox.Previews.Create(ctx, 3000, tyto.CreatePreviewOptions{Name: "web"})
+fmt.Println(preview.URL) // https://pv-<26 chars>.preview.tyto.run
+
+previews, err := sandbox.Previews.List(ctx)
+err = sandbox.Previews.Delete(ctx, preview.ID)
+```
+
+A token-mode preview needs the sandbox's capability, and a URL isn't a
+safe place to leave one. `sandbox.Previews.BrowserURL(preview)` produces a
+single-use entry point: the gateway validates the token, trades it for a
+host-scoped `HttpOnly` cookie, and redirects without the token in the URL.
+It errors on a public preview, which has no token to exchange.
+
+```go
+public, err := sandbox.Previews.Create(ctx, 8080, tyto.CreatePreviewOptions{Auth: tyto.PreviewAuthPublic})
+```
+
+`PreviewAuthPublic` means anyone with the URL reaches the service, no
+credential — the only protection is the 26 random characters in the
+hostname. `PreviewAuthToken` is the default; an omitted `Auth` never
+yields a public URL.
+
+`Create` returns a fresh capability and the SDK stores it on the sandbox
+automatically (the preview scope is newer than a sandbox's original
+token). If you're holding a capability elsewhere, refresh it explicitly
+with `sandbox.ReissueCapability(ctx)`.
+
+Traffic to a preview URL wakes a suspended sandbox; the first request
+after suspend pays resume latency and may return `503` with `Retry-After`.
+
+## Snapshots
+
+<Note>
+Snapshots exist only through the SDKs (and the `tyto` CLI) over gRPC —
+there is no public REST endpoint for creating or deleting them.
+</Note>
+
+```go
+snapshot, err := sandbox.Snapshot(ctx, tyto.SnapshotOptions{IdempotencyKey: "snapshot-job-123"})
+fmt.Println(snapshot.ID, snapshot.SourceSandboxID)
+
+snapshot.Delete(ctx)
+snapshot.Delete(ctx) // local no-op
+```
+
+`sandbox.Snapshot(ctx, opts...)` returns `*Snapshot`. If
+`SnapshotOptions.IdempotencyKey` is empty, the SDK generates and reuses
+one for transport retries; the same key against the same source sandbox
+returns the same snapshot identity on idempotent replay.
+
+Snapshot create requires a running source sandbox: a locally deleted or
+observed-deleted sandbox returns `*SandboxDeletedError`, a failed one
+returns `*SandboxFailedError`, a suspended one returns
+`*SandboxSuspendedError`.
+
+`snapshot.Delete(ctx)` returns `nil` and is idempotent on the same
+`*Snapshot`. A snapshot has its own identifier — you can delete it after
+deleting the sandbox that produced it.
+
+## Error handling
+
+All SDK errors embed `BaseError` and expose `Message()`, `SandboxID`,
+`OperationID`, `IdempotencyKey`. Use `errors.As` to match a specific type:
+
+```go
+sandbox, err := client.Sandboxes.Get(ctx, "sbx_missing")
+var notFound *tyto.SandboxNotFoundError
+if errors.As(err, &notFound) {
+	fmt.Println("sandbox does not exist or is not visible")
+}
+```
+
+| Error | Meaning |
+|---|---|
+| `*AuthenticationError` | Invalid or rejected API key. |
+| `*InvalidRequestError` | Invalid local arguments or invalid service response. |
+| `*SandboxNotFoundError` | Sandbox missing, deleted, or not visible to the key. |
+| `*SandboxDeletedError` | Operation can't run — sandbox is deleted. |
+| `*SandboxSuspendedError` | Operation reported a suspended sandbox. |
+| `*SandboxBusyError` | Service rejected a lifecycle operation as busy. |
+| `*SandboxFailedError` | Operation can't run — sandbox failed. |
+| `*SandboxCreationFailedError` | Create reached a failed terminal state. |
+| `*SandboxCreationTimeoutError` | Create deadline expired. |
+| `*CapabilityRejectedError` | Guest capability rejected and couldn't be refreshed. |
+| `*SessionExistsError` | `Sessions.Create` targeted a name with a non-replaceable record. |
+| `*SessionNotFoundError` | `Sessions.Attach`/`.Kill` named a session that doesn't exist. |
+| `*FilesystemError` | General filesystem failure. |
+| `*RemoteFileNotFoundError` | Remote file or directory missing (embeds `FilesystemError`; `errors.As(err, &fsErr)` also matches). |
+| `*RemoteFileExistsError` | Remote destination already exists. |
+| `*CrossFilesystemMoveError` | Remote move crosses filesystems. |
+| `*FilesystemLimitError` | Client or service filesystem size/frame limit. |
+| `*ExecFailedError` | `ExecResult.Check()` or `ExecOptions.Check: true` saw a non-OK result; carries `Result *ExecResult`. |
+| `*TimeoutError` | Operation deadline expired. |
+| `*ConnectionError` | Retryable transport failure exhausted retries. |
+| `*ServiceError` | Service or unexpected transport failure not covered above. |
+
+The SDK redacts API keys, capabilities, and selected operation identifiers
+from mapped service error messages, and replaces path-like internal
+details similarly.
+
+## Resource cleanup
+
+Go has no context-manager protocol, so use `defer` for deterministic
+cleanup:
+
+```go
+client, err := tyto.NewClient(tyto.WithAPIKey("BONYA_API_KEY"), tyto.WithEndpoint("https://api.tyto.run"))
+if err != nil {
+	log.Fatal(err)
+}
+defer client.Close()
+
+sandbox, err := client.Sandboxes.Create(ctx, "ubuntu-24.04")
+if err != nil {
+	log.Fatal(err)
+}
+defer sandbox.Delete(ctx)
+
+session, err := sandbox.ExecStream(ctx, []string{"cat"})
+if err != nil {
+	log.Fatal(err)
+}
+defer session.Close()
+session.Write([]byte("hello\n"))
+session.CloseStdin()
+```
+
+- `Client.Close()` closes cached channels and is idempotent.
+- `sandbox.Delete(ctx)` affects the remote sandbox and updates the local
+  handle to `StatusDeleted`; calling it again is a local no-op.
+- `session.Close()` (on an `*ExecSession`) cancels an unfinished session.
+- `stream.Close()` (on a `*SessionStream`) detaches an unfinished attach
+  rather than killing the guest process, which keeps running.
+- `snapshot.Delete(ctx)` deletes the remote snapshot and is a local no-op
+  when repeated on the same object.
+
+For intentionally persistent sandboxes, don't `defer sandbox.Delete(ctx)`.
+Store `sandbox.ID`, close the client, and reconnect later with
+`client.Sandboxes.Get(ctx, id)`.
+
+## Examples
+
+Runnable programs ship in the SDK's `examples/` directory, a separate
+module so `go get` on the SDK never pulls them in:
+
+| Directory | Shows |
+|---|---|
+| `quickstart` | Create, exec, clean up |
+| `exec-streaming` | Streaming output and stdin |
+| `files` | Read, write, upload, download, list |
+| `sessions` | Persistent terminals and replay |
+| `previews` | Publishing a port to a browser |
+| `snapshots` | Capturing sandbox state |
+
+```bash
+export BONYA_API_KEY=byk_...
+cd examples && go run ./quickstart
+```

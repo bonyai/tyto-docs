@@ -1,92 +1,59 @@
 ---
 title: Account
-description: login, logout, me
+description: whoami, logout, and version
 ---
 
-## `tyto login`
+This page covers the **Account** commands that aren't organization-related. See [`tyto org`](/cli-reference/org) for switching organizations and [`tyto login`](/cli-reference/login) for authenticating.
 
-Authenticate the CLI against a Tyto Control Plane. The default flow opens
-a browser to a Supabase GitHub OAuth page and polls the Control Plane
-until login is approved; the resulting API key is written to
-`~/.config/tyto/config.json` (mode `0600`).
+## `tyto whoami`
 
-Flags:
-- `--url string` — Control Plane base URL (default `https://api.tyto.run`)
-- `--api-key string` — skip OAuth; just save this key to config
-- `--open` (default `true`) — open the login URL in a browser automatically
-- `--poll-interval-ms int` (default `2000`) — how often to poll for approval
+Shows where the API key, endpoint, and organization id currently in effect each come from.
 
-Log in via browser:
-
-<CodeGroup>
-```shell Shell
-tyto login
+```shell
+tyto whoami
 ```
 
-```shell API
-curl -s -X POST https://api.tyto.run/auth/cli/start | tee /tmp/tyto-login.json
-open "$(jq -r .login_url /tmp/tyto-login.json)"
-
-# poll until approved
-curl -s -X POST https://api.tyto.run/auth/cli/poll \
-  -H "Content-Type: application/json" \
-  -d "{\"device_code\": \"$(jq -r .device_code /tmp/tyto-login.json)\"}"
+```console
+$ tyto whoami
+api key:         tyto login (saved)
+endpoint:        (not set)
+organization id: tyto login (saved): org-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b
 ```
-</CodeGroup>
 
-Log in against a self-hosted Control Plane:
+<Note>
+`whoami` makes **no network call**. It only reports which source — `--flag`, `environment variable`, `tyto login (saved)`, or `(not set)` — each setting resolves from, following the same [precedence order](/cli-reference/configuration#precedence) every other command uses. It never confirms the key is actually valid; use `tyto list` or another real command for that.
+</Note>
 
-<CodeGroup>
-```shell Shell
-tyto login --url https://cp.example.com
-```
-</CodeGroup>
-
-Save a pre-existing API key directly (no browser round trip):
-
-<CodeGroup>
-```shell Shell
-tyto login --api-key tyto_xxx
-```
-</CodeGroup>
+The API key's value is never printed, even when it's set — only its source. Endpoint and organization id print their actual saved value alongside the source, since those aren't secret.
 
 ## `tyto logout`
 
-Remove saved CLI credentials.
+Removes the API key (and endpoint/organization id) saved by `tyto login`, by deleting the config file.
 
-<CodeGroup>
-```shell Shell
+```shell
 tyto logout
 ```
-</CodeGroup>
 
-## `tyto me`
-
-Print the authenticated user.
-
-<CodeGroup>
-```shell Shell
-tyto me
+```console
+$ tyto logout
+Removed /Users/you/.config/tyto/config.json
 ```
 
-```shell API
-curl -s https://api.tyto.run/me \
-  -H "Authorization: Bearer $TYTO_API_KEY"
+This only affects the saved login — a `--api-key` flag or `BONYA_API_KEY` environment variable still works after `logout`, since those take priority over (and don't depend on) the saved config.
+
+## `tyto version`
+
+<Info>Alias: `v`</Info>
+
+Prints the installed CLI version.
+
+```shell
+tyto version
 ```
 
-```ts TypeScript
-const user = await tyto.me();
+```console
+$ tyto version
+tyto version v1.4.0
 ```
 
-```python Python
-user = tyto.me()
-```
-</CodeGroup>
-
-Show the current user as JSON:
-
-<CodeGroup>
-```shell Shell
-tyto me --json
-```
-</CodeGroup>
+`tyto --version` prints the same string, and the version is also folded into `tyto --help`'s output next to the `-h` flag. Note that `-v` is short only for the `version` subcommand (`tyto v`) — the root `--version` flag itself has no single-letter shorthand.

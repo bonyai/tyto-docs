@@ -1,0 +1,59 @@
+---
+title: Errors
+description: How the Tyto API reports failures
+---
+
+Every non-2xx response from the Tyto API is an [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) `application/problem+json` body.
+
+## Shape
+
+```json
+{
+  "type": "https://docs.tyto.run/errors/session-exists",
+  "title": "Session already exists",
+  "status": 409,
+  "code": "session_exists",
+  "detail": "A live session named \"build\" already exists on this sandbox."
+}
+```
+
+<ResponseField name="type" type="string" required>
+  A URI identifying the problem type.
+</ResponseField>
+
+<ResponseField name="title" type="string" required>
+  A short, human-readable summary of the problem.
+</ResponseField>
+
+<ResponseField name="status" type="integer" required>
+  The HTTP status code, repeated in the body for convenience.
+</ResponseField>
+
+<ResponseField name="code" type="string" required>
+  A stable, machine-readable error code.
+</ResponseField>
+
+<ResponseField name="detail" type="string">
+  A human-readable explanation specific to this occurrence of the problem.
+</ResponseField>
+
+<Warning>
+Branch your error handling on `code`, not on `status` or `title`. `code` is the stable, machine-readable field this API guarantees; `status` and `title` are for humans and logs.
+</Warning>
+
+## Known error codes
+
+These are the named `code` values documented in the API contract, the HTTP status they arrive with, and the operation that returns them.
+
+| `code` | Status | Where it happens |
+| --- | --- | --- |
+| `session_exists` | 409 | `POST /v1/sandbox/{sandbox_id}/sessions` — creating a session whose name collides with a **live** session. Replacing a session by name only works for sessions that have already reached a terminal state. |
+| `final_owner` | 409 | `PATCH /v1/organizations/{organization_id}/members/{user_id}` (demoting) and `DELETE /v1/organizations/{organization_id}/members/{user_id}` (removing) — an organization's last remaining owner can't be demoted or removed. This is also why the sole owner of a personal organization can't leave it. |
+| `lifecycle_conflict` | 409 | `POST /v1/organizations/{organization_id}/invites` — creating an invite for an email address that already has a live invitation to the same organization. |
+| `validation_failed` | 400 | `POST /v1/organizations/{organization_id}/invites` — attempting to invite into a personal organization, which can't be invited into. |
+
+This list covers the error codes named explicitly in the API contract. Other operations return `Problem` responses too (for example, malformed input generally, or a `404` for an unknown or cross-organization resource) — those follow the same shape but don't have a single contract-documented `code` literal beyond what's listed above.
+
+<Note>
+A `404` is also the deliberate response for both "doesn't exist" and "exists but isn't yours" — for example, a well-formed `X-Bonya-Organization-ID` for an organization you don't belong to returns `404`, not `403`, so the API doesn't confirm the organization's existence to non-members. Accepting an invitation token — unknown, addressed to someone else, already consumed, revoked, or expired — is likewise a single indistinguishable `404` rather than a code that would let you tell those cases apart.
+</Note>

@@ -1,0 +1,92 @@
+---
+title: session
+description: Managed session operations on a sandbox — create, list, attach, kill
+---
+
+## `tyto session`
+
+<Info>Aliases: `sess`, `s`</Info>
+
+Managed sessions are named terminals that keep running after you disconnect, and survive the sandbox suspending and resuming. Reattaching replays what the session produced while nobody was watching.
+
+For the common case — "give me a shell" — use [`tyto console`](/cli-reference/console) instead, which is a shortcut for attaching to a session named `console`. Use `tyto session` directly when you want a named, scriptable session (a dev server, a long build) that isn't the interactive console.
+
+## `create`
+
+Creates a named managed session running a given command.
+
+```shell
+tyto session create [sandbox] <name> -- cmd [args...]
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--cols` | server default | TTY columns. |
+| `--rows` | server default | TTY rows. |
+| `--by-name` | `false` | Treat the sandbox argument as a name even if it looks like an id. |
+
+```shell
+tyto session create web dev -- npm run dev
+```
+
+## `list`
+
+Lists a sandbox's managed sessions.
+
+```shell
+tyto session list [sandbox]
+```
+
+```shell
+tyto session list web
+```
+
+If the sandbox is currently suspended, the listing is served from a suspend-time snapshot and the output notes that explicitly.
+
+## `attach`
+
+Connects to a running managed session.
+
+```shell
+tyto session attach [sandbox] <name>
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--cols` | your terminal | TTY columns to apply at attach time. |
+| `--rows` | your terminal | TTY rows to apply at attach time. |
+| `--by-name` | `false` | Treat the sandbox argument as a name even if it looks like an id. |
+
+From a terminal, `attach` is fully interactive: stdin is forwarded and window resizes propagate. Piped or redirected, it streams the session's output read-only:
+
+```shell
+tyto session attach web dev | tee log
+```
+
+<Warning>
+Attaching **preempts** any other client already attached to that session — only one live attachment exists at a time. Detaching (Ctrl+D, closing the terminal) leaves the session itself running.
+</Warning>
+
+## `kill`
+
+Kills a managed session.
+
+```shell
+tyto session kill [sandbox] <name> [--signal TERM] [--grace-ms 5000]
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--signal` | `TERM` | Signal to send. |
+| `--grace-ms` | `5000` | Milliseconds to wait after the signal before sending `SIGKILL`. |
+| `--by-name` | `false` | Treat the sandbox argument as a name even if it looks like an id. |
+
+<CodeGroup>
+```shell Graceful kill (default)
+tyto session kill web dev
+```
+
+```shell Force kill immediately
+tyto session kill web dev --signal KILL
+```
+</CodeGroup>

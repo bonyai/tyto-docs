@@ -22,25 +22,43 @@
     "dark": "/logo-dark.svg",
     "href": "https://tyto.run"
   },
+  "redirects": [
+    { "source": "/concepts/nests", "destination": "/concepts/sandboxes" },
+    { "source": "/concepts/holds", "destination": "/concepts/sandboxes" },
+    { "source": "/guides/keepalive-holds", "destination": "/concepts/sandboxes" },
+    { "source": "/guides/billing", "destination": "/concepts/organizations" },
+    { "source": "/guides/snapshot-and-fork", "destination": "/guides/snapshot-a-sandbox" },
+    { "source": "/cli-reference/lifecycle", "destination": "/cli-reference/sandboxes" },
+    { "source": "/cli-reference/everyday", "destination": "/cli-reference/sandboxes" },
+    { "source": "/cli-reference/data", "destination": "/cli-reference/fs" },
+    { "source": "/cli-reference/sessions", "destination": "/cli-reference/session" }
+  ],
   "navigation": {
     "tabs": [
       {
         "tab": "Documentation",
         "groups": [
           {
-            "group": "Get Started",
+            "group": "Get started",
             "pages": ["index", "quickstart", "authentication"]
           },
           {
-            "group": "Core Concepts",
+            "group": "Core concepts",
             "pages": [
-              "concepts/nests",
+              "concepts/sandboxes",
+              "concepts/templates",
+              "concepts/exec",
               "concepts/sessions",
               "concepts/files",
               "concepts/previews",
               "concepts/snapshots",
-              "concepts/holds"
+              "concepts/organizations",
+              "concepts/api-keys"
             ]
+          },
+          {
+            "group": "API essentials",
+            "pages": ["concepts/errors", "concepts/idempotency", "concepts/websockets"]
           },
           {
             "group": "Guides",
@@ -48,9 +66,8 @@
               "guides/run-a-command",
               "guides/transfer-files",
               "guides/expose-a-preview",
-              "guides/snapshot-and-fork",
-              "guides/keepalive-holds",
-              "guides/billing"
+              "guides/snapshot-a-sandbox",
+              "guides/manage-your-team"
             ]
           }
         ]
@@ -59,28 +76,29 @@
         "tab": "CLI Reference",
         "groups": [
           {
-            "group": "Get Started",
-            "pages": ["cli-reference/overview"]
+            "group": "Overview",
+            "pages": ["cli-reference/overview", "cli-reference/configuration"]
           },
           {
-            "group": "Everyday",
-            "pages": ["cli-reference/everyday"]
+            "group": "Getting started",
+            "pages": ["cli-reference/login", "cli-reference/console", "cli-reference/create"]
           },
           {
-            "group": "Lifecycle",
-            "pages": ["cli-reference/lifecycle"]
+            "group": "Sandboxes",
+            "pages": ["cli-reference/sandboxes"]
           },
           {
-            "group": "Sessions",
-            "pages": ["cli-reference/sessions"]
-          },
-          {
-            "group": "Data",
-            "pages": ["cli-reference/data"]
+            "group": "Inside a sandbox",
+            "pages": [
+              "cli-reference/fs",
+              "cli-reference/session",
+              "cli-reference/preview",
+              "cli-reference/snapshot"
+            ]
           },
           {
             "group": "Account",
-            "pages": ["cli-reference/account"]
+            "pages": ["cli-reference/org", "cli-reference/account"]
           }
         ]
       },
@@ -94,6 +112,10 @@
           {
             "group": "Python",
             "pages": ["sdks/python/installation", "sdks/python/usage"]
+          },
+          {
+            "group": "Go",
+            "pages": ["sdks/go/installation", "sdks/go/usage"]
           }
         ]
       },
@@ -129,8 +151,5 @@
     "socials": {
       "github": "https://github.com/bonyai/tyto-docs"
     }
-  },
-  "api": {
-    "openapi": "api-reference/openapi.yaml"
   }
 }

@@ -1,0 +1,66 @@
+---
+title: preview
+description: Publish, list, and delete preview URLs for a port running inside a sandbox
+---
+
+## `tyto preview`
+
+<Info>Alias: `pv`</Info>
+
+A preview publishes one guest port at an HTTPS URL a browser can open. Ports must be in the range 1024–65535; privileged ports are never previewable.
+
+## `create`
+
+Publishes a preview URL for a guest port.
+
+```shell
+tyto preview create [sandbox] <port> [--auth token|public] [--name web]
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--auth` | `token` | `token` (URL requires a credential) or `public` (URL is reachable by anyone who has it). |
+| `--name` | — | Display name for the preview (max 80 bytes). |
+| `--by-name` | `false` | Treat the sandbox argument as a name even if it looks like an id. |
+
+<Warning>
+`--auth public` means anyone with the URL reaches the service running in your sandbox with **no credential at all**. The CLI marks public preview URLs in red in its output as a reminder. Use the default `token` mode unless you specifically need to share the URL with people who don't have a Tyto session.
+</Warning>
+
+<CodeGroup>
+```shell Default (token-authenticated)
+tyto preview create web 3000
+```
+
+```shell Named
+tyto preview create web 3000 --name app
+```
+
+```shell Public — no credential required
+tyto preview create web 8080 --auth public
+```
+</CodeGroup>
+
+## `list`
+
+Lists previews for a sandbox.
+
+```shell
+tyto preview list [sandbox]
+```
+
+```shell
+tyto preview list web
+```
+
+## `delete`
+
+Deletes a preview.
+
+```shell
+tyto preview delete [sandbox] <preview-id>
+```
+
+```shell
+tyto preview delete web pv-a1b2c3
+```

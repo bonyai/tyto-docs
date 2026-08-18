@@ -1,69 +1,133 @@
 ---
 title: Expose a preview
-description: Share a port running inside a nest over HTTPS
+description: Publish a port running inside a sandbox as an HTTPS URL
 ---
 
-If your nest is running a dev server or API on some port, a preview turns that port into an HTTPS URL.
+If your sandbox is running a dev server or API on some port, a preview turns that port into an HTTPS URL a browser can open. See [Previews](/concepts/previews) for the full field reference; this guide walks through creating one, choosing an auth mode, and cleaning up.
 
 ## Create a preview
 
 <CodeGroup>
-```shell Shell
-tyto preview my-nest --port 3000 --name web
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/previews" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"port": 3000, "name": "web"}'
 ```
 
-```shell API
-curl -s -X POST https://api.tyto.run/nest/$NEST_ID/previews \
-  -H "Authorization: Bearer $TYTO_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"port": 3000, "auth": "private", "name": "web"}'
+```shell CLI
+tyto preview create $SANDBOX_ID 3000 --name web
 ```
 
 ```ts TypeScript
-const preview = await nest.createPreview({ port: 3000, auth: "private" });
-console.log(preview.url);
+const preview = await sandbox.previews.create(3000, { name: "web" });
+console.log(preview.url); // https://pv-<26 chars>.preview.tyto.run
 ```
 
 ```python Python
-preview = nest.create_preview(port=3000, auth="private")
+preview = sandbox.previews.create(3000, name="web")
 print(preview.url)
 ```
+
+```go Go
+preview, err := sandbox.Previews.Create(ctx, 3000, tyto.CreatePreviewOptions{Name: "web"})
+fmt.Println(preview.URL)
+```
 </CodeGroup>
 
-## Private vs. public
+`port` must be 1024–65535 — privileged ports are never previewable. Create returns `201` with the created preview plus a `capability_jws` — that token is returned **only on create**, never again from list, so hold onto it if you need the token-mode exchange below.
 
-- `auth: "private"` (default) — only someone with a valid Tyto session can view the preview.
-- `auth: "public"` — anyone with the URL can view it. Use this for demos or sharing with people outside your Tyto account.
+## Token vs. public auth
 
-## List, inspect, and revoke
+`auth_mode` (REST) / `auth` (SDK) is one of two values:
+
+- **`token`** (default) — access is gated by a one-time browser exchange (below). This is what you want for anything not meant to be open to the internet.
+- **`public`** — anyone with the URL can view it, no credential at all. The only thing protecting a public preview is the 26 random characters in its hostname. Use this deliberately, for demos or sharing outside your organization — not as the default.
 
 <CodeGroup>
-```shell Shell
-tyto preview list my-nest
-tyto preview revoke web-a1b2
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/previews" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"port": 8080, "auth_mode": "public"}'
 ```
 
-```shell API
-curl -s https://api.tyto.run/nest/$NEST_ID/previews \
-  -H "Authorization: Bearer $TYTO_API_KEY"
-
-curl -s -X DELETE https://api.tyto.run/previews/$PREVIEW_ID \
-  -H "Authorization: Bearer $TYTO_API_KEY"
+```shell CLI
+tyto preview create $SANDBOX_ID 8080 --auth public
 ```
 
 ```ts TypeScript
-const previews = await nest.previews.list();
-await nest.previews.revoke(preview.id!);
+import { PreviewAuth } from "@bonya-ai/tyto";
+
+const publicPreview = await sandbox.previews.create(8080, { auth: PreviewAuth.PUBLIC });
 ```
 
 ```python Python
-previews = nest.previews.list()
-nest.previews.revoke(preview.id)
+public = sandbox.previews.create(8080, auth=PreviewAuth.PUBLIC)
 ```
 </CodeGroup>
 
-Previews also expire on their own — check `expires_at` on the preview object, or `expires_in` (seconds) on the create response.
+The CLI marks public preview URLs in its output as a reminder of what you just did.
 
-## From an MCP client
+## The token-mode browser exchange
 
-Use `preview_create`, `preview_list`, `preview_get`, and `preview_revoke`. See [MCP Tools](/mcp/tools).
+In `token` mode, a browser needs to trade the `capability_jws` for a session cookie once before it can view the preview. At a high level: navigate to `preview.url` with `?bonya_token=<capability_jws>` appended, and Roxy (the preview proxy) validates the token, sets a host-scoped `Secure`/`HttpOnly` cookie, and redirects to the same URL with the token stripped — before any guest content renders. See [Previews](/concepts/previews#the-token-mode-browser-exchange) for the exact mechanics.
+
+You don't have to build that URL by hand — the TypeScript, Python, and Go SDKs each expose a helper that does it for you:
+
+<CodeGroup>
+```ts TypeScript
+const browserUrl = sandbox.previews.browserUrl(preview);
+// open browserUrl in a browser — one-time entry point
+```
+
+```python Python
+browser_url = sandbox.previews.browser_url(preview)
+```
+
+```go Go
+browserURL := sandbox.Previews.BrowserURL(preview)
+```
+</CodeGroup>
+
+This throws/raises/errors if called on a public preview, since there's no token to exchange.
+
+<Warning>
+Don't store `capability_jws` in a URL, log, or anywhere durable beyond the single navigation described above — it's a bearer credential for the preview.
+</Warning>
+
+## List and delete
+
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/previews" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+
+curl -s -X DELETE "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/previews/$PREVIEW_ID" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```shell CLI
+tyto preview list $SANDBOX_ID
+tyto preview delete $SANDBOX_ID $PREVIEW_ID
+```
+
+```ts TypeScript
+await sandbox.previews.list();
+await sandbox.previews.delete(preview.id);
+```
+
+```python Python
+sandbox.previews.list()
+sandbox.previews.delete(preview.id)
+```
+</CodeGroup>
+
+List never includes `capability_jws` — only create does. Delete is idempotent and deliberately doesn't distinguish "already deleted" from "belongs to another organization," so it always returns `204`.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Previews" icon="link" href="/concepts/previews" />
+  <Card title="Sandboxes" icon="box" href="/concepts/sandboxes" />
+</CardGroup>

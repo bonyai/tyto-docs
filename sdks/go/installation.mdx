@@ -1,0 +1,119 @@
+---
+title: Installation
+description: Install and configure the Go SDK
+---
+
+The Go SDK's module path is `github.com/bonyai/tyto-go`, package name
+`tyto`. It talks to Tyto over gRPC — the same transport as the CLI.
+
+## Requirements
+
+- Go 1.25 or newer
+- Depends on `google.golang.org/grpc` and `google.golang.org/protobuf`
+- A Tyto API key (`byk_...`)
+
+## Install
+
+```bash
+go get github.com/bonyai/tyto-go
+```
+
+## Configure
+
+Every option has an environment-variable fallback, so the common case
+needs no options at all:
+
+<CodeGroup>
+```bash Environment variable
+export BONYA_API_KEY=byk_...
+```
+
+```go Explicit
+client, err := tyto.NewClient(
+	tyto.WithAPIKey("byk_..."),
+	tyto.WithEndpoint("https://api.tyto.run"),
+)
+```
+</CodeGroup>
+
+| Option | Environment variable | Default |
+|---|---|---|
+| `WithAPIKey` | `BONYA_API_KEY` | *required* |
+| `WithEndpoint` | `BONYA_ENDPOINT` | `https://api.tyto.run` |
+| `WithOrganizationID` | `BONYA_ORGANIZATION_ID` | your personal organization |
+| `WithCABundle` | `BONYA_CA_BUNDLE` | system trust store |
+| `WithTimeout` | — | `30 * time.Second` |
+| `WithMaxRetries` | — | `2` |
+| `WithFilesystemReadLimit` | — | 64 MiB |
+
+`WithAPIKey` (or `BONYA_API_KEY`) is required. `WithEndpoint` (or
+`BONYA_ENDPOINT`) must be an HTTPS URL — the SDK rejects non-HTTPS URLs,
+URLs with userinfo, query strings, fragments, malformed ports, or no host.
+`WithCABundle` (or `BONYA_CA_BUNDLE`) points to a PEM bundle for private
+development CAs; if the file can't be read, `NewClient` returns an
+`*InvalidRequestError`.
+
+`WithTimeout` is the default per-operation deadline; buffered and
+streaming exec calls can override it per call with `ExecOptions.Timeout`.
+`WithMaxRetries` controls SDK retries for retryable control-plane
+operations (create, get, list, delete, resume, snapshot create, snapshot
+delete). `WithFilesystemReadLimit` caps bytes buffered by
+`sandbox.Files.Read`.
+
+<Note>
+An empty `WithOrganizationID("")` (or `BONYA_ORGANIZATION_ID=""`) makes
+`NewClient` return an `*InvalidRequestError` rather than silently falling
+back to your personal organization — this avoids CI jobs quietly running
+against the wrong tenant when a variable expansion is empty.
+</Note>
+
+Close the client when done:
+
+```go
+client, err := tyto.NewClient()
+if err != nil {
+	log.Fatal(err)
+}
+defer client.Close()
+```
+
+## Quickstart
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	tyto "github.com/bonyai/tyto-go"
+)
+
+func main() {
+	client, err := tyto.NewClient() // reads BONYA_API_KEY
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer client.Close()
+
+	ctx := context.Background()
+	sandbox, err := client.Sandboxes.Create(ctx, "ubuntu-24.04")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer sandbox.Delete(ctx)
+
+	result, err := sandbox.Exec(ctx, []string{"echo", "hello"}, tyto.ExecOptions{Check: true})
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Print(result.Stdout()) // hello
+}
+```
+
+That is a real VM: it boots in about a second, runs anything Linux runs,
+and is gone when `Delete` runs.
+
+See [Usage](/sdks/go/usage) for the full surface — sessions, files,
+previews, snapshots, and error handling.

@@ -1,0 +1,153 @@
+---
+title: fs
+description: Remote filesystem operations on a sandbox — read, write, upload, download, list, stat, mkdir, rm, mv
+---
+
+## `tyto fs`
+
+Reads and writes files inside a sandbox. Every subcommand names its sandbox by name or id, interchangeably, and omitting it opens a picker:
+
+```shell
+tyto fs ls web /workspace
+tyto fs ls /workspace        # prompts for the sandbox
+```
+
+All nine subcommands accept `--by-name` to force name interpretation of the sandbox argument.
+
+## `read` (alias: `cat`)
+
+Prints a remote file to stdout.
+
+```shell
+tyto fs read [sandbox] <path>
+```
+
+```shell
+tyto fs read web /etc/hostname
+tyto fs cat web /etc/hostname
+```
+
+## `write`
+
+Writes a local file — or stdin, with `-` — to a remote path.
+
+```shell
+tyto fs write [sandbox] <path> <local-file-or-->
+```
+
+<Warning>
+Argument order is **remote path, then local source** — the opposite order from `upload`. `write` exists mainly for piping stdin straight to a remote file; `upload` exists for local-file-to-remote-file with the more intuitive source-then-destination order.
+</Warning>
+
+<CodeGroup>
+```shell From a local file
+tyto fs write web /workspace/notes.txt ./notes.txt
+```
+
+```shell From stdin
+echo 'hello' | tyto fs write web /workspace/hello.txt -
+```
+</CodeGroup>
+
+## `upload`
+
+Uploads a local file to a remote path. Source, then destination — the familiar order.
+
+```shell
+tyto fs upload [sandbox] <local> <remote>
+```
+
+```shell
+tyto fs upload web ./dist.tar.gz /workspace/dist.tar.gz
+```
+
+## `download`
+
+Downloads a remote file to a local path.
+
+```shell
+tyto fs download [sandbox] <remote> <local>
+```
+
+```shell
+tyto fs download web /workspace/output.log ./output.log
+```
+
+## `ls`
+
+Lists a remote directory.
+
+```shell
+tyto fs ls [sandbox] <path>
+```
+
+```shell
+tyto fs ls web /workspace
+```
+
+## `stat`
+
+Shows metadata (kind, size, mode, modified time) for a remote path.
+
+```shell
+tyto fs stat [sandbox] <path>
+```
+
+```shell
+tyto fs stat web /workspace/app.py
+```
+
+## `mkdir`
+
+Creates a remote directory.
+
+```shell
+tyto fs mkdir [sandbox] <path>
+```
+
+```shell
+tyto fs mkdir web /workspace/logs
+```
+
+## `rm`
+
+Removes a remote file or directory.
+
+```shell
+tyto fs rm [sandbox] <path> [--recursive]
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--recursive` | `false` | Remove directories recursively. |
+
+```shell
+tyto fs rm web /workspace/tmp.txt
+tyto fs rm web /workspace/build --recursive
+```
+
+## `mv`
+
+Moves (renames) a remote file or directory.
+
+```shell
+tyto fs mv [sandbox] <src> <dst>
+```
+
+```shell
+tyto fs mv web /workspace/draft.md /workspace/final.md
+```
+
+## All subcommands at a glance
+
+| Command | Arguments | Notes |
+| --- | --- | --- |
+| `read` (`cat`) | `<path>` | Prints to stdout. |
+| `write` | `<path> <local-or-->` | Remote path first, source second. |
+| `upload` | `<local> <remote>` | Source first, remote path second. |
+| `download` | `<remote> <local>` | |
+| `ls` | `<path>` | |
+| `stat` | `<path>` | |
+| `mkdir` | `<path>` | |
+| `rm` | `<path>` | `--recursive` for directories. |
+| `mv` | `<src> <dst>` | |

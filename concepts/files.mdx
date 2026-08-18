@@ -1,39 +1,132 @@
 ---
 title: Files
-description: Upload and download files inside a nest
+description: Read, write, and manage files on a sandbox's filesystem
 ---
 
-Every nest exposes a simple filesystem API rooted at `/home/tyto`.
+Every sandbox exposes a filesystem API under `/v1/sandbox/{sandbox_id}/fs`. All operations take a `sandbox_id` and, where they act on a path, a `path` query parameter.
 
-- `PUT /nest/{id}/fs/write?path=...&kind=file|dir` uploads a file (`application/octet-stream`) or a directory (`application/x-tar`).
-- `GET /nest/{id}/fs/read?path=...` downloads a file or directory. The response's `X-Tyto-FS-Kind` header tells you whether you got raw file bytes or a tar archive.
+<Note>
+Read and write bodies are **raw bytes** (`application/octet-stream`) — not tar archives, not multipart form data. Each call moves exactly one file's contents.
+</Note>
 
-`kind` must match what you're sending: `file` for a single file body, `dir` for a tar archive of a directory tree.
+## Reading a file
 
-Both SDKs wrap this as a single `put`/`get` call that picks the right `kind` and handles tar packing/unpacking for you:
-
-<CodeGroup>
-```shell Shell
-tyto put ./hello.txt my-nest:hello.txt
-tyto get my-nest:hello.txt ./hello.downloaded.txt
+```
+GET /v1/sandbox/{sandbox_id}/fs/read
 ```
 
-```ts TypeScript
-await nest.put("./hello.txt", "hello.txt");
-await nest.get("hello.txt", "./hello.downloaded.txt");
+<ParamField query="path" type="string" required>
+  Path to the file.
+</ParamField>
+
+Returns `200` with the raw file contents as `application/octet-stream`.
+
+## Writing a file
+
+```
+PUT /v1/sandbox/{sandbox_id}/fs/write
 ```
 
-```python Python
-nest.put("./hello.txt", "hello.txt")
-nest.get("hello.txt", "./hello.downloaded.txt")
-```
-</CodeGroup>
+<ParamField query="path" type="string" required>
+  Path to write to.
+</ParamField>
 
-For lower-level control, both SDKs also expose the raw calls under `nest.fs`.
+The request body is the raw file contents (`application/octet-stream`). Returns `204` on success — no response body.
+
+## Listing a directory
+
+```
+GET /v1/sandbox/{sandbox_id}/fs/list
+```
+
+<ParamField query="path" type="string" required>
+  Directory path to list.
+</ParamField>
+
+Returns `FsListResponse`: `{ "files": [ ...FsFileInfo ] }`.
+
+## Getting file metadata
+
+```
+GET /v1/sandbox/{sandbox_id}/fs/stat
+```
+
+<ParamField query="path" type="string" required>
+  Path to stat.
+</ParamField>
+
+Returns `FsStatResponse`: `{ "file": { ...FsFileInfo } }`.
+
+### FsFileInfo fields
+
+<ResponseField name="path" type="string" required>
+  Full path.
+</ResponseField>
+<ResponseField name="name" type="string" required>
+  Base name.
+</ResponseField>
+<ResponseField name="kind" type="string" required>
+  One of `UNSPECIFIED`, `FILE`, `DIRECTORY`, `SYMLINK`, `OTHER`.
+</ResponseField>
+<ResponseField name="size" type="integer" required>
+  Size in bytes.
+</ResponseField>
+<ResponseField name="mode" type="integer" required>
+  Permission bits as reported by the guest, 0–4095.
+</ResponseField>
+<ResponseField name="modified_at_unix_nanos" type="integer" required>
+  Last-modified time.
+</ResponseField>
+
+## Creating a directory
+
+```
+POST /v1/sandbox/{sandbox_id}/fs/mkdir
+```
+
+Request body (`FsMkdirRequest`):
+
+<ParamField body="path" type="string" required>
+  Directory path to create.
+</ParamField>
+
+Returns `201` on success.
+
+## Renaming or moving
+
+```
+POST /v1/sandbox/{sandbox_id}/fs/rename
+```
+
+Request body (`FsRenameRequest`):
+
+<ParamField body="from" type="string" required>
+  Source path.
+</ParamField>
+<ParamField body="to" type="string" required>
+  Destination path.
+</ParamField>
+
+Returns `200` on success.
+
+## Deleting
+
+```
+DELETE /v1/sandbox/{sandbox_id}/fs
+```
+
+<ParamField query="path" type="string" required>
+  Path to remove.
+</ParamField>
+<ParamField query="recursive" type="boolean" default="false">
+  Whether to remove a non-empty directory recursively.
+</ParamField>
+
+Returns `204` on success.
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Transfer files" icon="file" href="/guides/transfer-files" />
-  <Card title="Data CLI reference" icon="database" href="/cli-reference/data" />
+  <Card title="Sandboxes" icon="box" href="/concepts/sandboxes" />
+  <Card title="Errors" icon="triangle-exclamation" href="/concepts/errors" />
 </CardGroup>

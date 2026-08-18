@@ -1,0 +1,96 @@
+---
+title: Configuration
+description: Flag, environment variable, and saved-login precedence, the config file, and non-interactive behavior
+---
+
+## Precedence
+
+Every setting resolves in the same order, checked in this sequence, first non-empty value wins:
+
+<Steps>
+  <Step title="Flag">
+    An explicit `--api-key`, `--endpoint`, `--organization-id`, or `--ca-bundle` on the command line.
+  </Step>
+  <Step title="Environment variable">
+    `BONYA_API_KEY`, `BONYA_ENDPOINT`, `BONYA_ORGANIZATION_ID`, or `BONYA_CA_BUNDLE`.
+  </Step>
+  <Step title="Saved login">
+    Whatever `tyto login` last wrote to the config file. `--ca-bundle` has no saved-login fallback — only flag and environment variable apply to it.
+  </Step>
+</Steps>
+
+If none of the three supply an API key, the command fails immediately with:
+
+```text
+api key is required: pass --api-key, set BONYA_API_KEY, or run `tyto login`
+```
+
+`--endpoint` and `--organization-id` are optional at every level — an unset endpoint falls back to the SDK's built-in default, and an unset organization ID resolves to your personal organization.
+
+Run `tyto whoami` at any time to see exactly which source (`--flag`, `environment variable`, `tyto login (saved)`, or `(not set)`) each setting is currently resolving from.
+
+## Config file
+
+`tyto login` writes the resolved API key (and, if given, the endpoint and organization id) to a JSON file:
+
+- `$XDG_CONFIG_HOME/tyto/config.json`, if `XDG_CONFIG_HOME` is set
+- otherwise `<user config dir>/tyto/config.json` (Go's `os.UserConfigDir()` — `~/Library/Application Support/tyto/config.json` on macOS, `~/.config/tyto/config.json` on Linux)
+
+```json
+{
+  "api_key": "byk_...",
+  "endpoint": "https://api.tyto.run",
+  "organization_id": "org-..."
+}
+```
+
+`endpoint` and `organization_id` are omitted from the file entirely when not set. The file is written with `0600` permissions, and its parent directory with `0700`, since it holds a live API key. `tyto logout` deletes the file; deleting an already-absent file is not an error.
+
+`tyto org use` updates just the `organization_id` field in this same file, without touching the API key or endpoint.
+
+## `--json`
+
+Pass `--json` on any command to get machine-readable output instead of tables and key/value text:
+
+```shell
+tyto list --json | jq -r '.[] | select(.last_observed_status=="running") | .id'
+```
+
+JSON output is never colored and never decorated with hints — it's meant purely for a parser. Passing `--json` also disables all interactive prompting (see below), the same as `--no-input`.
+
+## Non-interactive behavior
+
+`tyto` prompts — with pickers, confirmations, and spinners — only when it's safe to. Prompting is disabled the instant **any** of these five conditions hold:
+
+1. `--no-input` is passed
+2. `--json` is passed
+3. the `CI` environment variable is set (to anything)
+4. stdin is not a terminal (piped, redirected, or a CI runner)
+5. stdout is not a terminal
+
+Both stdin and stdout are checked because the picker UI draws on stdout and reads keys from stdin — either one being redirected makes a prompt unusable.
+
+Instead of hanging waiting for a keystroke nobody will send, a command fails immediately with a message naming what was missing:
+
+```console
+$ tyto console < /dev/null
+no sandbox given and this is not an interactive terminal; pass a sandbox name or id
+```
+
+Ambiguity is reported the same way, with enough detail to resolve it without a picker:
+
+```console
+$ tyto get web --no-input
+3 sandboxes are named "web"; pass an id instead:
+  sbx-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b  running    ubuntu-24.04
+  sbx-9a02aabbccddeeff00112233445566aa  suspended  ubuntu-24.04
+  sbx-c731ffeeddccbbaa99887766554433ff  failed     ubuntu-24.04
+```
+
+<Note>
+`delete` is a special case: on a non-interactive run, there is no confirmation prompt to skip — naming the sandbox on the command line **is** the confirmation. `--force` only matters interactively, where it skips the "are you sure" prompt.
+</Note>
+
+## Color
+
+`--no-color` disables ANSI color codes; the `NO_COLOR` environment variable does the same. Color is also automatically suppressed whenever output isn't a terminal, so piping `tyto list` to a file or another program never leaks escape codes into it.

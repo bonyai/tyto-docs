@@ -1,0 +1,47 @@
+---
+title: Templates
+description: The image a sandbox is created from
+---
+
+Every sandbox is created from a **template**, identified by `template_id` — a caller-supplied string, not a value chosen from a catalog.
+
+## Specifying a template
+
+<ParamField body="template_id" type="string" required>
+  Identifies the image to create the sandbox from.
+</ParamField>
+<ParamField body="template_version" type="string">
+  Optionally pins a specific version of the template.
+</ParamField>
+
+Both are set on [sandbox create](/concepts/sandboxes#creating-a-sandbox) (`POST /v1/sandbox`). The created `Sandbox` echoes back `template_id` and `template_version` so you can see what was actually resolved.
+
+<Warning>
+There is no template-listing or template-registry endpoint in the API. `template_id` is a string you supply, not a value you look up from a catalog — the API doesn't expose a way to enumerate available templates.
+</Warning>
+
+## A common starting point
+
+The CLI and SDK examples consistently use `"ubuntu-24.04"` as the `template_id` when creating a sandbox:
+
+<CodeGroup>
+```shell CLI
+tyto create --template ubuntu-24.04
+```
+
+```python Python
+sandbox = client.create_sandbox(template="ubuntu-24.04")
+```
+
+```go Go
+sandbox, err := client.CreateSandbox(ctx, "ubuntu-24.04")
+```
+</CodeGroup>
+
+This isn't a default enforced by the API — `template_id` is required on every create call — but it's the value used throughout the CLI and SDK documentation and examples.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Sandboxes" icon="box" href="/concepts/sandboxes" />
+</CardGroup>

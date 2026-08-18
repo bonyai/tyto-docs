@@ -1,78 +1,163 @@
 ---
 title: Authentication
-description: Get and use a Tyto API key
+description: Authenticate to the Tyto API with a personal API key or a session JWT
 ---
 
-Every request to the Tyto API (other than health checks and the browser/preview endpoints) requires a bearer token:
+## Base URL
 
-```bash
-Authorization: Bearer $TYTO_API_KEY
+```
+https://api.tyto.run
 ```
 
-Both SDKs and the MCP server read this from the `TYTO_API_KEY` environment variable by default, and let you override the API base URL with `TYTO_API_URL` (defaults to `https://api.tyto.run`).
+<Note>
+The API's OpenAPI document doesn't declare a `servers:` block, so an interactive API playground generated from it may not have a default host preconfigured. Use `https://api.tyto.run` explicitly, or override it via the `BONYA_ENDPOINT` environment variable described below.
+</Note>
 
-## CLI browser login
+## Two ways to authenticate
 
-This is the flow the `tyto` CLI and other device-style clients use to obtain an API key without ever seeing a password.
+The API accepts two bearer-token schemes, and most operations accept either one:
+
+<CardGroup cols={2}>
+  <Card title="Personal API key" icon="key">
+    A `byk_`-prefixed personal API key. A user-principal credential, resolved to a tenant (organization) by org context. Used by the CLI, SDKs, and most direct API calls.
+  </Card>
+  <Card title="Supabase session JWT" icon="fingerprint">
+    A Supabase-issued session JWT. Required for organization administration, invites, and API-key management — these reject personal API keys outright.
+  </Card>
+</CardGroup>
+
+Either way, the token goes in the standard header:
+
+```
+Authorization: Bearer <token>
+```
+
+### What needs which
+
+Sandbox, session, exec, file, and preview operations accept a `personalApiKey`. Organization administration (listing/creating/renaming organizations, managing members), invitations, and API-key management are **JWT-only** — they explicitly refuse personal API keys, because they're dashboard-facing operations where a signed-in browser session is doing the asking, not an automated client.
+
+Device-login's mint and poll steps (below) are unauthenticated entirely — the token they hand you *is* the credential at that point, there's nothing to bear a bearer token for yet.
+
+## Organization context
+
+```
+X-Bonya-Organization-ID: <organization_id>
+```
+
+Most sandbox-scoped operations accept this optional header to select which organization (tenant) the call operates against:
+
+- **Omitted** — resolves to the caller's personal organization.
+- **Malformed** — `400`.
+- **Well-formed but the caller isn't a member** — `404`, not `403`. The API doesn't confirm an organization exists to a non-member.
+
+## Environment variables
+
+The CLI and SDKs read these environment variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `BONYA_API_KEY` | The personal API key to authenticate with. |
+| `BONYA_ENDPOINT` | Base URL for the API. Defaults to `https://api.tyto.run`. |
+| `BONYA_CA_BUNDLE` | Path to a CA bundle, for custom TLS trust roots. |
+| `BONYA_ORGANIZATION_ID` | Default value sent as `X-Bonya-Organization-ID` on every request. |
+
+```bash
+export BONYA_API_KEY=byk_...
+export BONYA_ENDPOINT=https://api.tyto.run
+export BONYA_ORGANIZATION_ID=org-...
+```
+
+## Getting a key: device login
+
+`tyto login` uses a three-leg device-login flow: mint a token, approve it in a browser against your already-signed-in dashboard session, then poll until it's approved. No password ever passes through the CLI.
 
 <Steps>
-  <Step title="Start a login">
-    `POST /auth/cli/start` returns a `login_url`, a `device_code`, and how long the code is valid for (`expires_in` seconds).
+  <Step title="Mint a device-login token">
+    `POST /v1/device-login` — unauthenticated, no request body.
 
-    <CodeGroup>
-    ```shell Shell
-    tyto login
-    ```
+    Returns a `DeviceLoginMintResponse`:
 
-    ```shell API
-    curl -s -X POST https://api.tyto.run/auth/cli/start
+    <ResponseField name="token" type="string" required>
+      The `byd_`-prefixed device-login token. It's also embedded in `verification_url`.
+    </ResponseField>
+    <ResponseField name="verification_url" type="string" required>
+      The dashboard URL the CLI opens a browser to.
+    </ResponseField>
+    <ResponseField name="expires_in" type="integer" required>
+      Seconds until the token expires unapproved.
+    </ResponseField>
+    <ResponseField name="interval" type="integer" required>
+      Recommended seconds to wait between poll calls.
+    </ResponseField>
+
+    ```shell
+    curl -s -X POST https://api.tyto.run/v1/device-login
     ```
-    </CodeGroup>
 
     ```json
     {
-      "login_url": "https://api.tyto.run/auth/browser/start?device_code=...",
-      "device_code": "...",
-      "expires_in": 600
+      "token": "byd_...",
+      "verification_url": "https://tyto.run/device?token=byd_...",
+      "expires_in": 600,
+      "interval": 5
     }
     ```
   </Step>
-  <Step title="Approve in a browser">
-    Open `login_url`. This hits `GET /auth/browser/start`, which redirects to the sign-in/approval page, and finishes at `GET /auth/callback` once approved.
+  <Step title="Approve in the browser">
+    The CLI opens `verification_url`. The signed-in dashboard session calls `POST /v1/device-login/approve` with the token, authenticated with the browser's own **Supabase JWT** — this is a JWT-only, JWT-provisioning operation, since it's the already-signed-in session vouching for a login it didn't itself start.
+
+    Request body (`DeviceLoginApproveRequest`):
+
+    <ParamField body="token" type="string" required>
+      The `byd_` device-login token from the verification URL.
+    </ParamField>
+
+    A successful approval returns `204` with no body.
   </Step>
   <Step title="Poll for the API key">
-    `POST /auth/cli/poll` with the `device_code` returns `status: "pending"` until approval, then `status: "approved"` along with `api_key` and the signed-in `user`. The device code expires — a `410` means you need to start over.
+    `POST /v1/device-login/poll` — unauthenticated; the token itself is the credential. Same request body shape as approve (`{ "token": "byd_..." }`).
+
+    Always returns `200` with a `DeviceLoginPollResponse`:
+
+    <ResponseField name="status" type="string" required>
+      One of `pending`, `approved`, or `expired`.
+    </ResponseField>
+    <ResponseField name="api_key" type="string">
+      Present **only once** — on the single poll response that first observes `approved`.
+    </ResponseField>
+    <ResponseField name="user_email" type="string">
+      The approving user's email. Present alongside `api_key`.
+    </ResponseField>
+
+    An unknown token is `404`. Poll every `interval` seconds (from the mint response) until `status` is `approved` or `expired`.
 
     ```shell
-    curl -s -X POST https://api.tyto.run/auth/cli/poll \
+    curl -s -X POST https://api.tyto.run/v1/device-login/poll \
       -H "Content-Type: application/json" \
-      -d '{"device_code": "..."}'
+      -d '{"token": "byd_..."}'
     ```
   </Step>
 </Steps>
 
+<Warning>
+`api_key` is returned exactly once, on the poll call that first sees `approved`. Store it immediately (the CLI writes it to its config) — polling again afterward returns `approved` without the key.
+</Warning>
+
 ## Using the key
 
 ```bash
-export TYTO_API_KEY=your_key_here
-curl -s https://api.tyto.run/me -H "Authorization: Bearer $TYTO_API_KEY"
+curl -s https://api.tyto.run/v1/sandbox \
+  -H "Authorization: Bearer $BONYA_API_KEY"
 ```
 
-<CodeGroup>
-```ts TypeScript
-import { Tyto } from "@bonya-ai/tyto";
+Both SDKs read `BONYA_API_KEY` and `BONYA_ENDPOINT` from the environment by default, or accept explicit overrides in code.
 
-// reads TYTO_API_KEY / TYTO_API_URL from the environment
-const tyto = new Tyto();
+## Managing API keys
 
-// or pass explicitly
-const tyto2 = new Tyto({ apiKey: "your_key_here" });
-```
+Personal API keys themselves are managed over the JWT-only surface — a key can never be used to manage keys:
 
-```python Python
-import os
-from tyto import Tyto
+- `GET /v1/api-keys` — list your keys (prefix and last 4 characters only; JWT required).
+- `POST /v1/api-keys` — create a new key. The `secret` is shown exactly once in the response.
+- `DELETE /v1/api-keys/{key_id}` — revoke a key.
 
-tyto = Tyto(api_key=os.environ["TYTO_API_KEY"])
-```
-</CodeGroup>
+This is the dashboard/JWT path for issuing a key directly, as an alternative to the device-login flow above.

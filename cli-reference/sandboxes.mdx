@@ -1,0 +1,130 @@
+---
+title: Sandboxes
+description: list, get, delete, and exec — inspecting and managing sandboxes you already have
+---
+
+This page covers the **Sandboxes** command group: `list`, `get`, `delete`, and `exec`. For creating a sandbox, see [`create`](/cli-reference/create); for a shell, see [`console`](/cli-reference/console).
+
+## `tyto list`
+
+<Info>Aliases: `ls`, `l`</Info>
+
+Lists sandboxes.
+
+```shell
+tyto list [--state running,suspended] [--name web] [--limit 20]
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--state` | (all) | Comma-separated state filter. Valid values: `creating`, `running`, `suspending`, `suspended`, `resuming`, `failed`. |
+| `--name` | (all) | Only list sandboxes with this exact (case-sensitive) name. |
+| `--limit` | `0` (unlimited) | Maximum number of sandboxes to return. |
+
+<CodeGroup>
+```shell List everything
+tyto list
+```
+
+```shell Only running sandboxes
+tyto list --state running
+```
+
+```shell Multiple states
+tyto list --state running,suspended
+```
+
+```shell As JSON, filtered with jq
+tyto list --json | jq -r '.[] | select(.last_observed_status=="running") | .id'
+```
+</CodeGroup>
+
+## `tyto get [sandbox]`
+
+<Info>Aliases: `show`, `info`</Info>
+
+Shows one sandbox's details — id, name, status, template, version, and operation id.
+
+```shell
+tyto get web
+tyto get sbx-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b
+tyto get                # picker
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--by-name` | `false` | Treat the argument as a name even if it looks like an id. |
+
+## `tyto delete [sandbox]`
+
+<Info>Aliases: `rm`, `del`</Info>
+
+Tears down a sandbox. This is not reversible.
+
+```shell
+tyto delete web
+tyto delete web --force
+tyto delete                # picker
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--force` | `false` | Skip the confirmation prompt. |
+| `--by-name` | `false` | Treat the argument as a name even if it looks like an id. |
+
+<Note>
+On an interactive terminal, `delete` asks "Delete &lt;name&gt;? This cannot be undone." before proceeding, unless `--force` is passed. Non-interactively there is no prompt at all — naming the sandbox on the command line is itself the confirmation, so `--force` has no effect there.
+</Note>
+
+Deleting an already-deleted sandbox is not an error — the result reports `Already deleted: <id>` instead of `Deleted <id>`.
+
+## `tyto exec [sandbox] [flags] -- cmd [args...]`
+
+<Info>Aliases: `run`, `x`</Info>
+
+Runs a command in a sandbox and exits with the remote command's exit code.
+
+```shell
+tyto exec web -- ls /workspace
+tyto exec -- ls /workspace          # prompts for the sandbox
+tyto exec                           # prompts for both sandbox and command
+```
+
+`exec` takes any number of arguments, so it's valid to run it with **no** sandbox and **no** command — it prompts for whichever is missing (interactively only; see [non-interactive behavior](/cli-reference/configuration#non-interactive-behavior)).
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--env` | — | Environment variable in `KEY=VALUE` form. Repeatable. |
+| `--cwd` | — | Remote working directory. |
+| `--tty` | `false` | Allocate a pseudo-TTY and forward stdin interactively. |
+| `--cols` | terminal size | TTY columns. Only meaningful with `--tty`. |
+| `--rows` | terminal size | TTY rows. Only meaningful with `--tty`. |
+| `--by-name` | `false` | Treat the sandbox argument as a name even if it looks like an id. |
+
+With `--tty` and no explicit `--cols`/`--rows`, the terminal size defaults to your own and resizes propagate as you resize your window. Without `--tty`, stdout and stderr are captured and printed separately (buffered, not streamed).
+
+<Warning>
+A remote command that exits non-zero is a **faithful result**, not a CLI failure — `tyto exec`'s own exit code mirrors it exactly, with no extra error message. Don't treat a non-zero `tyto exec` exit code as a CLI bug; check what the remote command itself reported.
+</Warning>
+
+<CodeGroup>
+```shell Basic command
+tyto exec web -- printf 'hello\n'
+```
+
+```shell With an environment variable
+tyto exec web --env MODE=development -- python3 -c 'import os; print(os.environ["MODE"])'
+```
+
+```shell Fully interactive TTY
+tyto exec web --tty -- bash
+```
+
+```shell Piped stdin still works
+echo hi | tyto exec web --tty -- cat
+```
+
+```shell Working directory
+tyto exec web --cwd /workspace -- pwd
+```
+</CodeGroup>

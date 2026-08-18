@@ -1,0 +1,80 @@
+---
+title: org
+description: Choose which organization your commands act in by default
+---
+
+## `tyto org`
+
+<Info>Aliases: `orgs`, `o`</Info>
+
+An API key belongs to a user, not an organization, so one key works across every organization you belong to. `org` controls which one your commands act in by default, so you don't have to pass `--organization-id` on every command.
+
+Running `tyto org` with no subcommand does the same thing as `tyto org list`.
+
+```shell
+tyto org list             # table of organizations, marking the current one
+tyto org use <name|id>    # save as default; no argument opens a picker
+tyto org show             # what is currently in effect, and where it came from
+tyto org clear            # fall back to your personal organization
+```
+
+<Note>
+Your personal organization — the one every account always has — is displayed as `personal`, not your own name or email. The CLI doesn't reliably know what to call it otherwise.
+</Note>
+
+## `list`
+
+<Info>Aliases: `ls`, `l`</Info>
+
+Lists the organizations you belong to as a table, marking which one is currently selected.
+
+```shell
+tyto org list
+```
+
+## `use`
+
+<Info>Aliases: `u`, `select`</Info>
+
+Saves an organization as the default for future commands. Omit the argument to pick from a list.
+
+```shell
+tyto org use [name-or-id]
+```
+
+```shell
+tyto org use Acme
+tyto org use org-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b
+tyto org use
+```
+
+The name is resolved to an id before saving — the value written to disk is always an id, never a name, since a name can be renamed out from under a saved selection but an id can't. If the name matches more than one organization, `use` narrows an interactive picker to just those matches (or fails with the list of ids, non-interactively).
+
+## `show`
+
+<Info>Aliases: `current`, `s`</Info>
+
+Shows the organization currently in effect and where that value came from (flag, environment variable, or saved selection).
+
+```shell
+tyto org show
+```
+
+## `clear`
+
+Removes the saved organization selection, falling back to your personal organization.
+
+```shell
+tyto org clear
+```
+
+## How the selection is applied
+
+The saved selection is stored in the same config file `tyto login` writes to (see [Configuration](/cli-reference/configuration)), and follows the same rule the web dashboard uses: a saved selection wins while you're still a member of it, and silently falls back to your personal organization the moment you're not.
+
+```shell
+tyto org use Acme
+tyto list                 # now scoped to Acme with no flag
+```
+
+`--organization-id` (flag or `BONYA_ORGANIZATION_ID` environment variable) always overrides whatever `org use` has saved — see the precedence order in [Configuration](/cli-reference/configuration#precedence).

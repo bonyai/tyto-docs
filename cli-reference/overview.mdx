@@ -1,87 +1,98 @@
 ---
 title: Overview
-description: Install the tyto CLI and learn its global flags and short forms
+description: What the tyto CLI is, how to install it, and how it resolves sandboxes and config
 ---
 
-`tyto` is the command-line client for Tyto — hosted, isolated Linux nests
-(Firecracker microVMs) for everyday development. Log in, create a nest,
-open an interactive shell, and work on code that persists across
-stop/start cycles.
+`tyto` is the command-line client for the Tyto Compute API — create sandboxes, get a shell in one, move files in and out, and publish preview URLs. It is a thin wrapper around the Go SDK: every command builds an SDK client and calls straight into it.
 
 <CodeGroup>
 ```shell Shell
-tyto login
-tyto create web --repo owner/repo
-tyto console web
+tyto login              # authenticate in your browser
+tyto console            # pick a sandbox (or create one) and get a shell
 ```
 </CodeGroup>
 
-## Installation
+## Install
 
 <CodeGroup>
-```shell Shell
+```shell Homebrew
+brew install bonyai/tap/tyto
+```
+
+```shell Install script
 curl -fsSL https://get.tyto.run/install.sh | sh
 ```
 </CodeGroup>
 
-Every command supports `--help`, and the binary responds to `--version`.
-
-## Global flags
-
-These apply to every subcommand:
-
-| Flag | Default | Description |
-|---|---|---|
-| `--api-url string` | (from config) | Control Plane base URL (overrides config) |
-| `--api-key string` | (from config) | API key (overrides config) |
-| `--config string` | `~/.config/tyto/config.json` | Config file path |
-| `--json` | `false` | Machine-readable JSON output where supported |
-| `-v, --verbose` | `false` | Verbose logging to stderr |
-
-Config is written to `$XDG_CONFIG_HOME/tyto/config.json` (or
-`~/.config/tyto/config.json`) with mode `0600` and holds the API URL, API
-key, and authenticated user (id, email).
-
-## Short forms
-
-Several commands and flags have shorter aliases for faster typing:
-
-| Full | Short |
-|---|---|
-| `tyto list` | `tyto ls` |
-| `tyto delete` | `tyto rm` |
-| `tyto session` | `tyto s` |
-| `tyto snapshot` | `tyto snap` |
-| `tyto snapshot delete` | `tyto snap rm` |
-| `--verbose` | `-v` |
-| `--yes` (delete commands) | `-y` |
-| `--tty` (`exec`) | `-t` |
-| `--env` (`exec`) | `-e` |
-
-## Exit codes and scripting
-
-Pass `--json` to any command that supports it for machine-readable
-output. Combine with `--no-console` on `create` and non-interactive flags
-elsewhere to use `tyto` safely in scripts and CI.
+Both work on macOS and Linux. Every command supports `-h`/`--help`, and `tyto --version` (or `tyto version`) prints the installed version.
 
 ## Command groups
 
-Commands are grouped the same way `tyto --help` groups them:
+`tyto --help` groups commands by what they're for, rather than listing them alphabetically:
 
 <CardGroup cols={2}>
-  <Card title="Everyday" icon="bolt" href="/cli-reference/everyday">
-    create, list, console, exec, preview
+  <Card title="Getting started" icon="rocket" href="/cli-reference/login">
+    `login`, `console`, `create`
   </Card>
-  <Card title="Lifecycle" icon="rotate" href="/cli-reference/lifecycle">
-    start, stop, wake, inspect, restore, fork, delete
+  <Card title="Sandboxes" icon="server" href="/cli-reference/sandboxes">
+    `list`, `get`, `delete`, `exec`
   </Card>
-  <Card title="Sessions" icon="terminal" href="/cli-reference/sessions">
-    session, attach
+  <Card title="Inside a sandbox" icon="terminal" href="/cli-reference/fs">
+    `fs`, `session`, `preview`, `snapshot`
   </Card>
-  <Card title="Data" icon="database" href="/cli-reference/data">
-    snapshot, put, get, hold
-  </Card>
-  <Card title="Account" icon="user" href="/cli-reference/account">
-    login, logout, me
+  <Card title="Account" icon="user" href="/cli-reference/org">
+    `org`, `whoami`, `logout`, `version`
   </Card>
 </CardGroup>
+
+## Persistent flags
+
+Every command accepts these flags, each falling back to an environment variable and then to whatever `tyto login` saved. See [Configuration](/cli-reference/configuration) for the exact precedence rules and config file location.
+
+| Flag | Environment variable | Notes |
+| --- | --- | --- |
+| `--api-key` | `BONYA_API_KEY` | Required, from a flag, env var, or saved login. |
+| `--endpoint` | `BONYA_ENDPOINT` | API endpoint. Defaults to the SDK's built-in default when unset. |
+| `--organization-id` | `BONYA_ORGANIZATION_ID` | Omit to use your personal organization; see [`tyto org`](/cli-reference/org). |
+| `--ca-bundle` | `BONYA_CA_BUNDLE` | Path to a PEM CA bundle, for private development CAs. |
+| `--json` | — | Machine-readable JSON instead of tables. Never colored, never prompts. |
+| `--no-color` | `NO_COLOR` | Plain text output. |
+| `--no-input` | — | Never prompt; fail with a clear message when an argument is missing. |
+
+## Sandboxes are named by name *or* id
+
+Every command that takes a sandbox accepts **either a name or an id, in the same argument** — you never have to say which one you meant:
+
+```shell
+tyto console web                                    # by name
+tyto console sbx-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b   # by id
+```
+
+### How resolution works
+
+The CLI decides what an argument means with a fixed algorithm (`resolveSandboxRef`):
+
+1. **Empty argument** — omit the sandbox entirely and it opens a picker over every sandbox in scope. If your account has none yet, it offers to create one.
+2. **Id shape** — a value matching `^sbx-[0-9a-f]{32}$` (the literal `sbx-` prefix followed by 32 lowercase hex characters) is looked up directly as an id, with no list call.
+3. **Name match** — anything else is looked up by exact, case-sensitive name:
+   - **Exactly one match** — resolves straight to that sandbox.
+   - **No match** — the CLI says so, then (interactively) falls back to a picker over every sandbox; non-interactively it fails with a message telling you to pass an id or run `tyto list`.
+   - **Multiple matches** — names are not unique, so the CLI narrows the picker to just the matching sandboxes; non-interactively it fails and lists their ids so you can disambiguate.
+
+<Note>
+Server-generated names never collide with the id shape by accident — ids are an internal, fixed 36-character format, so a name would have to be deliberately crafted to match it.
+</Note>
+
+### `--by-name`
+
+`--by-name` is a per-command flag (not persistent — it's not listed above) available on every command that takes a sandbox argument, except `create`, `list`, `login`, `logout`, `whoami`, `version`, and the `org` subcommands. It skips the id-shape check in step 2 above and forces the argument to be resolved as a name.
+
+This exists for the one case the shape check can't cover on its own: a sandbox deliberately (or accidentally) named to look exactly like an id.
+
+```shell
+tyto get sbx-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b --by-name
+```
+
+## Scripting
+
+Every interactive behavior — pickers, confirmations, spinners — turns itself off automatically when there's nobody to interact with. See [Configuration](/cli-reference/configuration) for the exact conditions and what happens instead of prompting.

@@ -1,0 +1,103 @@
+---
+title: Sandboxes
+description: The compute resource at the center of the Tyto API
+---
+
+A **sandbox** is the resource everything else in the API is scoped to — sessions, exec, files, and previews all operate on a sandbox identified by its `sandbox_id`.
+
+## Identity
+
+A sandbox is created from a `template_id` and gets a server-assigned `sandbox_id`, which is the only identifier every other operation (sessions, exec, files, previews) accepts. A sandbox can also have a `name`, but names are a display label, not an identifier:
+
+- `name` is optional on create. If you omit it (or send a blank one), the service generates a friendly one.
+- `name` is **not unique**. The `name` query filter on list is an exact match, and because names aren't unique it can match more than one sandbox.
+- Sandboxes created before names existed as a field may have no `name` at all; every sandbox returned afterward carries one.
+
+<Note>
+Always key off `sandbox_id` in code you write against this API. Treat `name` as something to show a human, not something to look a sandbox up by.
+</Note>
+
+## Lifecycle states
+
+A sandbox's `state` is one of:
+
+| State | Meaning |
+| --- | --- |
+| `CREATING` | The sandbox is being provisioned after a create call. |
+| `RUNNING` | The sandbox is up and reachable for exec, sessions, files, and previews. |
+| `SUSPENDING` | The sandbox is in the process of being suspended. |
+| `SUSPENDED` | The sandbox is paused. |
+| `RESUMING` | The sandbox is transitioning back to `RUNNING` in response to a resume call. |
+| `FAILED` | Provisioning or a lifecycle transition failed. `failure_code` and `failure_message` describe why. |
+
+Suspension is **automatic** — there is no endpoint to request it. The only lifecycle transition you invoke explicitly is resume:
+
+```
+POST /v1/sandbox/{sandbox_id}/resume
+```
+
+This synchronously resumes a suspended sandbox back to `RUNNING`. The response is a `SandboxResume` object with `sandbox_id` and `already_running`: if the sandbox was already running, the call is a no-op and `already_running` is `true`, but it still returns `200`.
+
+<Note>
+There is no start, stop, wake, fork, or restore endpoint. Resume is the only explicit lifecycle verb this API exposes; every other transition happens on its own.
+</Note>
+
+## Creating a sandbox
+
+```
+POST /v1/sandbox
+```
+
+The request body (`SandboxCreate`) requires `template_id`. Optional fields:
+
+- `template_version` — pins a specific template version.
+- `name` — display label, up to 80 characters. Not unique (see above).
+- `network` — a `NetworkPolicy` controlling egress (see below).
+
+By default, create returns **202 Accepted** with the sandbox in `CREATING` (or whatever state it's already reached) — it does not wait for the sandbox to be ready. Pass `?wait=ready` to block until the sandbox reaches a ready state, in which case the same call returns **201 Created** instead. Both responses share the same body shape: `{ "sandbox": { ...Sandbox } }`.
+
+Create also accepts an `Idempotency-Key` header — see [Idempotency](/concepts/idempotency) for exactly what that does and doesn't protect against.
+
+## Getting and listing sandboxes
+
+`GET /v1/sandbox/{sandbox_id}` returns a single sandbox as `{ "sandbox": { ...Sandbox } }`.
+
+`GET /v1/sandbox` returns a page of sandboxes:
+
+- `page_size` — 1 to 100, default 50.
+- `page_token` — opaque cursor from a previous page's `next_page_token`.
+- `states` — filter by one or more `SandboxState` values (repeat the query parameter for multiple states).
+- `name` — exact-match filter; can match more than one sandbox since names aren't unique.
+
+The response (`SandboxPage`) is `{ "sandboxes": [...], "next_page_token": "..." }`.
+
+<Warning>
+`DELETED` is not a filterable state. A deleted sandbox is a tombstone, not a listable state — you can't ask the list endpoint for deleted sandboxes.
+</Warning>
+
+## Deleting a sandbox
+
+```
+DELETE /v1/sandbox/{sandbox_id}
+```
+
+Deletion is a **synchronous teardown** — it doesn't return until the sandbox is gone. Deleting an already-deleted (tombstoned) sandbox again returns `204`, the same as the first successful delete. An unknown `sandbox_id`, or one that belongs to a different organization than the caller's context, returns `404`.
+
+## Network policy
+
+A sandbox can carry a `network` policy (`NetworkPolicy`) that controls outbound network egress. Its `mode` is one of:
+
+- `standard` (default) — the platform's normal egress behavior.
+- `deny_all` — no outbound network access.
+- `custom` — egress is restricted to an explicit allowlist.
+
+When `mode` is `custom`, the policy must include an `allow` list of at least one `NetworkRule`, each with a `cidr` and an optional list of `ports` (1–65535). The `allow` list is capped at **64 rules**. For any mode other than `custom`, `allow` must be empty.
+
+## Related
+
+Sandboxes are the scope for everything else in the API:
+
+- [Exec](/concepts/exec) — run one-off commands directly against a sandbox.
+- [Sessions](/concepts/sessions) — long-lived, named command sessions inside a sandbox.
+- [Files](/concepts/files) — read, write, and manage files on a sandbox's filesystem.
+- [Previews](/concepts/previews) — expose a port running inside a sandbox as an HTTPS URL.

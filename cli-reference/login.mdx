@@ -1,0 +1,87 @@
+---
+title: login
+description: Authenticate the CLI, either via your browser or with an existing API key
+---
+
+## `tyto login`
+
+Saves an API key (and optionally an endpoint and organization id) to the local config file, so subsequent commands don't need `--api-key`/`--endpoint`/`--organization-id` or `BONYA_API_KEY`/`BONYA_ENDPOINT`/`BONYA_ORGANIZATION_ID`. Flags and environment variables still take priority over what's saved — see [Configuration](/cli-reference/configuration) for the full precedence order.
+
+There are two ways to log in:
+
+<Tabs>
+  <Tab title="Browser (default)">
+    Run `tyto login` with no `--api-key`. This is a device-authorization flow — the same shape as `gh auth login`:
+
+    ```shell
+    tyto login
+    ```
+
+    It mints a login request, prints (and opens) a verification URL, and polls until you approve the login there. Nothing to copy or paste. The resulting API key is saved automatically.
+
+    ```console
+    $ tyto login
+    Opening https://tyto.run/device?... in your browser.
+    If it doesn't open automatically, visit: https://tyto.run/device?...
+    Waiting for approval...
+    Logged in as you@example.com
+    Saved login to /Users/you/.config/tyto/config.json
+    ```
+  </Tab>
+  <Tab title="API key">
+    Pass `--api-key` directly — useful for CI, or when you already have a key:
+
+    ```shell
+    tyto login --api-key byk_...
+    tyto login --api-key byk_... --endpoint https://api.tyto.run --organization-id org-...
+    ```
+
+    This path makes one bounded `list` call (`Limit: 1`) to confirm the key actually works before saving it. Pass `--skip-verify` to save without that check.
+  </Tab>
+</Tabs>
+
+If your account has no sandboxes yet, `tyto login` offers to create your first one and tells you how to open a shell in it.
+
+## Flags
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--api-key` | — | API key to save. Setting this skips the browser flow entirely. |
+| `--endpoint` | — | Endpoint to save alongside the API key (optional). |
+| `--organization-id` | — | Organization id to save alongside the API key (optional). |
+| `--skip-verify` | `false` | Save without making a request to verify the API key first. Only applies to the `--api-key` path. |
+| `--no-browser` | `false` | Print the login URL instead of opening it automatically (e.g. over SSH). Only applies to the browser flow. |
+| `--timeout` | server-provided expiry | How long to wait for browser approval before giving up. Only applies to the browser flow. |
+
+<Note>
+`--skip-verify` and `--no-browser` each only affect one of the two login paths: `--skip-verify` does nothing without `--api-key`, and `--no-browser` does nothing *with* it (the `--api-key` path never opens a browser in the first place).
+</Note>
+
+## Examples
+
+<CodeGroup>
+```shell Browser login
+tyto login
+```
+
+```shell Over SSH (print, don't open)
+tyto login --no-browser
+```
+
+```shell Custom approval timeout
+tyto login --timeout 2m
+```
+
+```shell CI / scripted
+tyto login --api-key "$BONYA_API_KEY" --skip-verify
+```
+</CodeGroup>
+
+## After logging in
+
+```shell
+tyto whoami    # shows where each setting currently resolves from
+tyto logout    # removes the saved login
+```
+
+See [`whoami` and `logout`](/cli-reference/account) and [`tyto org`](/cli-reference/org) for switching which organization your commands act in.

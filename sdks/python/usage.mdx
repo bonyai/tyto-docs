@@ -1,88 +1,500 @@
 ---
 title: Usage
-description: Drive nests, sessions, files, previews, snapshots, and holds from Python
+description: Sandboxes, exec, sessions, files, previews, and snapshots from Python
 ---
 
+Every sandbox operation on `client.sandboxes` also has a flat form
+directly on `Client` — `client.create_sandbox(...)`, `client.get_sandbox(id)`,
+`client.get_sandbox_by_name(name)`, `client.list_sandboxes()`,
+`client.delete_sandbox(id)`, `client.resume_sandbox(id)` — for callers
+who'd rather call a verb than navigate an attribute. Both spellings are
+the same implementation.
+
+Sessions, previews, and snapshots have flat forms too
+(`client.create_session(sandbox_id, name, cmd)`,
+`client.create_preview(sandbox_id, port)`, `client.create_snapshot(sandbox_id)`,
+and so on), but each does a `get_sandbox()` first and then delegates — one
+extra round trip compared to already holding a `Sandbox` handle. Prefer
+`sandbox.sessions.create(...)` (or the equivalent) when a `Sandbox` is
+already in hand; reach for the flat form when all you have is an id.
+
+## Create sandboxes
+
 ```python
-import os
-from tyto import Tyto
+from tyto import Tyto, Wait
 
-tyto = Tyto(api_key=os.environ["TYTO_API_KEY"])
-
-# Who am I?
-me = tyto.me()
-print(me.email)
-
-# Create a nest
-nest = tyto.create(name="my-nest", template="ubuntu-24-dev")
-
-# Upload / download a file or directory
-nest.put("./hello.txt", "hello.txt")
-nest.get("hello.txt", "./hello.downloaded.txt")
-
-# Create a session and attach via a signed grant + WebSocket
-session = nest.create_session(argv=["bash", "-lc", "echo hi"], tty=False)
-with session.attach() as ws:
-    for message in ws:
-        print(message)
-
-# Open an interactive shell / one-off TTY exec (also grant + WebSocket under the hood)
-with nest.exec_tty(argv=["htop"]) as ws: ...
-with nest.console() as ws: ...
-
-# Create a preview
-preview = nest.create_preview(port=3000, auth="private")
-print(preview.url)
-
-# Snapshot, fork, restore
-snap = nest.create_snapshot(name="v1")
-fork = nest.fork(name="my-fork")
-nest.delete_snapshot(snap.id)
-# nest.restore(snap.id)
-
-# Keepalive hold
-nest.holds.put("ci", ttl="30m", reason="CI job")
-nest.holds.heartbeat("ci", ttl="30m")
-nest.holds.delete("ci")
-
-# Lifecycle
-nest.stop()
-nest.start()
-nest.wake(reason="wakeup")
-nest.delete()
+with Tyto() as client:
+    sandbox = client.sandboxes.create(
+        template="ubuntu-24.04",
+        version=None,
+        wait=Wait.READY,
+        idempotency_key="create-job-123",
+    )
 ```
 
-## Resources
+`client.sandboxes.create(...)` returns a `Sandbox`.
 
-| Resource | Description |
+| Parameter | Type | Description |
+|---|---|---|
+| `template` | `str` | Required, non-empty. |
+| `version` | `str \| None` | Template version. Server default when omitted. |
+| `wait` | `Wait \| "ready" \| "none"` | Defaults to `Wait.READY`. |
+| `idempotency_key` | `str \| None` | Generated and reused for transport retries if omitted. |
+| `name` | `str \| None` | Optional display name, at most 80 bytes. Server generates a friendly one when omitted. Names are not unique. |
+
+`Wait.READY` (or `"ready"`) asks the service to return a running sandbox —
+`last_observed_status == Status.RUNNING`. `Wait.NONE` (or `"none"`)
+returns as soon as the service accepts the request —
+`last_observed_status == Status.CREATING`.
+
+If create exhausts its deadline, the SDK raises `SandboxCreationTimeoutError`,
+carrying the `idempotency_key` used so you can retry the same creation
+rather than starting a second sandbox.
+
+Sandbox fields: `sandbox.id`, `.operation_id`, `.template`, `.version`,
+`.last_observed_status`.
+
+## Get, list, and get by name
+
+```python
+sandbox = client.sandboxes.get("sbx_123")
+
+from tyto import Status
+
+for summary in client.sandboxes.list(
+    states=[Status.RUNNING, Status.SUSPENDED],
+    limit=20,
+):
+    print(summary.id, summary.last_observed_status.value)
+
+by_name = client.sandboxes.get_by_name("web-server")
+```
+
+`get(sandbox_id)` requires a non-empty id and returns a usable `Sandbox`
+handle. It does **not** explicitly resume the sandbox — exec and
+filesystem calls are what wake a suspended one.
+
+`list(...)` returns an iterator of immutable `SandboxSummary` values and
+pages as you iterate. `limit=0` returns an empty iterator without an RPC.
+`name=` filters to sandboxes carrying an exact display name (names aren't
+unique, so this can still match more than one). Valid `states` filters are
+`Status.CREATING`, `RUNNING`, `SUSPENDING`, `SUSPENDED`, `RESUMING`, and
+`FAILED` — `Status.DELETED` is not a valid filter. A `SandboxSummary` has
+`id`, `operation_id`, `template`, `version`, `last_observed_status`,
+`failure_code`, `failure_message` — it cannot run `exec`; call `get(summary.id)`
+first.
+
+`get_by_name(name)` resolves a display name to a single sandbox. Names are
+not unique: if more than one sandbox carries the name, it raises rather
+than picking one (a later `delete()` could otherwise destroy the wrong
+sandbox). If none match, it raises `SandboxNotFoundError`.
+
+## Delete and cleanup
+
+```python
+result = sandbox.delete()
+print(result.sandbox_id, result.already_deleted)
+```
+
+`sandbox.delete()` returns `DeleteResult(sandbox_id, already_deleted)`.
+Calling it again on the same `Sandbox` object is local and idempotent — no
+second RPC. Context-manager cleanup calls `delete()`:
+
+```python
+with client.sandboxes.create(template="ubuntu-24.04") as sandbox:
+    sandbox.exec("printf work", check=True)
+```
+
+If both the `with` block and cleanup fail, the cleanup error is attached
+as the body exception's `__context__`.
+
+## Resume
+
+```python
+resume = sandbox.resume(idempotency_key="resume-job-123")
+print(resume.sandbox_id, resume.lifecycle_operation_id, resume.already_running)
+```
+
+`sandbox.resume(...)` returns `ResumeResult(sandbox_id,
+lifecycle_operation_id, already_running)` and updates the sandbox's
+private exec endpoint/capability, setting `last_observed_status` to
+`Status.RUNNING`. `resume()` on a failed sandbox raises
+`SandboxFailedError` locally, before any RPC.
+
+Explicit resume is different from automatic wake: `get()` never calls
+`resume()`, and ordinary exec/filesystem calls don't make a public
+`ResumeSandbox` RPC — they hit the sandbox's guest endpoint directly, and
+the service may wake it behind that route.
+
+## exec vs exec_stream
+
+`exec()` buffers output and returns once the process exits — good for
+short, bounded commands. `exec_stream()` yields events as they happen —
+use it for large output, long-running commands, interactive stdin, or
+cancellation. Both are one-shot: the remote process ends when the call (or
+stream) ends. This is different from [managed sessions](#managed-console-sessions),
+which keep running after you disconnect.
+
+### Buffered exec
+
+```python
+result = sandbox.exec(
+    ["python3", "-c", "import os; print(os.environ['MODE'])"],
+    env={"MODE": "development"},
+    cwd="/workspace",
+    timeout=10,
+)
+
+print(result.stdout, result.stderr, result.exit_code, result.ok)
+```
+
+```text
+sandbox.exec(
+    command,
+    *,
+    env=None,
+    cwd=None,
+    tty=False,
+    cols=None,
+    rows=None,
+    timeout=None,
+    check=False,
+    input=None,
+)
+```
+
+`command` is either a `str` (run as `["/bin/sh", "-c", command]`) or a
+non-empty `Sequence[str]` with no empty or non-string entries. `env`
+overlays string env vars (keys can't contain `=` or NUL). `cwd` sets the
+remote working directory. `input` is `str` or `bytes`, written to stdin
+before it's half-closed — buffered `input` requires `tty=False`.
+
+`ExecResult` exposes `stdout_bytes`/`stderr_bytes` (`bytes`),
+`stdout`/`stderr` (UTF-8 with replacement for invalid bytes), `exit_code`,
+`signaled`, `signal`, `ok` (`exit_code == 0 and not signaled`), and
+`str(result)` (same as `.stdout`).
+
+`check=True` calls `result.check()` before returning; on a non-ok result
+it raises `ExecFailedError`, with the original result at `error.result`.
+
+### Streaming exec
+
+```python
+from tyto import Exit, Stderr, Stdout
+
+with sandbox.exec_stream(["bash", "-lc", "echo out; echo err >&2"]) as session:
+    for event in session:
+        if isinstance(event, Stdout):
+            print("stdout:", event.data.decode("utf-8", errors="replace"), end="")
+        elif isinstance(event, Stderr):
+            print("stderr:", event.data.decode("utf-8", errors="replace"), end="")
+        elif isinstance(event, Exit):
+            print("exit:", event.exit_code)
+```
+
+```text
+sandbox.exec_stream(
+    command,
+    *,
+    env=None,
+    cwd=None,
+    tty=False,
+    cols=None,
+    rows=None,
+    timeout=None,
+)
+```
+
+`exec_stream()` returns an `ExecSession`, an iterator of `Stdout`,
+`Stderr`, and `Exit` events. Write stdin with `session.write(data)`
+(bytes-like), close it with `session.close_stdin()` (idempotent).
+`session.cancel()` is idempotent and sends a cancel frame when possible;
+`session.close()` cancels an unfinished session — `with sandbox.exec_stream(...)`
+closes on block exit. If stdin writes can't drain before the deadline,
+`write()` raises `TimeoutError`. If iteration reaches the session deadline
+before the next event, the SDK cancels the remote exec and raises
+`TimeoutError`.
+
+### TTY exec
+
+Set `tty=True` for terminal semantics — stdout and stderr share the
+terminal stream, so the SDK returns terminal output as `stdout` and leaves
+`stderr` empty. Default dimensions are 80x24 (sent on the wire as
+`cols=0, rows=0`). Provide both `cols` and `rows` together to override —
+each must be an integer from 1 through 512, and both require `tty=True`.
+Buffered `input=` isn't allowed with `tty=True`; use `exec_stream()` and
+`session.write(...)` instead. Resize an active TTY stream with
+`session.resize(cols=..., rows=...)`.
+
+## Managed console sessions
+
+Every `Sandbox` has `sandbox.sessions`, a `SandboxSessions` for named,
+persistent command sessions that **outlive the client connection**. This
+is the key distinction from `exec_stream()`: an exec process dies when its
+stream closes, but a managed session keeps running detached, and you can
+reattach later — even after the sandbox warm-suspends and resumes — and
+replay what it produced while nobody was watching. Use `exec`/`exec_stream`
+for one-shot commands; use `sessions` for long-lived terminals like dev
+servers you want to detach from and come back to.
+
+```python
+info = sandbox.sessions.create("server", ["bash"], cols=120, rows=40)
+
+session = sandbox.sessions.attach("server")
+session.write(b"npm run dev\n")
+session.resize(cols=140, rows=45)
+for event in session:
+    ...
+session.detach()
+
+for info in sandbox.sessions.list():
+    print(info.name, info.status)
+
+sandbox.sessions.kill("server")
+```
+
+**Create** — `sessions.create(name, command, *, env=None, cwd=None,
+cols=0, rows=0, replace=False)`. `name` must match
+`^[a-z][a-z0-9-]{0,31}$`. `command` is a non-empty sequence of non-empty
+strings (no shell-string convenience like `exec()`). Creating over an
+existing record raises `SessionExistsError` unless `replace=True` — and
+even then, only a terminal record (exited/killed/failed) is replaced; a
+running or attached session is never replaced. Returns `SessionInfo`.
+
+**List** — `sessions.list()` returns a `SessionList`: an immutable
+sequence of `SessionInfo` that also carries `sandbox_suspended: bool`.
+Listing works on a suspended sandbox without waking it.
+
+**Attach** — `sessions.attach(name, *, cols=0, rows=0, max_replay_bytes=0)`
+returns a `SessionStream`. `session.info`, `.replayed_bytes`,
+`.history_dropped` describe the bounded replay from while you were
+detached (the replay ring is 1 MiB). Attaching preempts any other attached
+client — the loser gets `SessionEnded(SessionEndedReason.TAKEOVER)`.
+Attaching to a suspended sandbox's session wakes it.
+
+Stream events: `Stdout(data)` (merged output — sessions are TTY-only, no
+separate stderr), `Exit(exit_code, signaled, signal)`, `SessionEnded(reason)`
+(`DETACHED` or `TAKEOVER`), `SessionOutputDropped(dropped_bytes)` (client
+reading too slowly; doesn't end the attach).
+
+`session.write(data)`, `session.resize(cols=..., rows=...)` (1–512 per
+dimension), `session.detach()` (ends gracefully, process keeps running),
+`session.close()` (calls `detach()` if still open — `with sandbox.sessions.attach(...)`
+detaches on block exit).
+
+**Kill** — `sessions.kill(name, signal="TERM", grace_ms=5000)` signals the
+process group, escalating to `SIGKILL` after `grace_ms` if it hasn't
+exited. Returns `SessionInfo`, but exit info isn't guaranteed on that
+response — `kill()` doesn't wait for the guest to reap the process, so a
+`list()` shortly after is the reliable way to see the final exit code.
+Killing an unknown name raises `SessionNotFoundError`.
+
+`SessionInfo`: `name`, `command` (`tuple[str, ...]`), `working_dir`,
+`status`, `attached`, `started_at`, `last_activity_at`, `ended_at`, `exit`.
+`SessionStatus` values: `UNSPECIFIED`, `STARTING`, `IDLE`, `ATTACHED`,
+`EXITED`, `KILLED`, `FAILED`.
+
+A session's process never blocks idle suspend by itself — only an
+*attached* stream does. A quiet, detached session lets the sandbox
+warm-suspend and survives the resume with process and replay buffer
+intact.
+
+## Files
+
+Every `Sandbox` has `sandbox.files`, a `SandboxFiles`:
+
+```python
+sandbox.files.write("/workspace/message.txt", "hello\n")
+payload = sandbox.files.read("/workspace/message.txt")
+
+sandbox.files.upload("local-input.bin", "/workspace/input.bin")
+sandbox.files.download("/workspace/input.bin", "local-output.bin")
+
+entries = sandbox.files.list("/workspace")
+info = sandbox.files.stat("/workspace/message.txt")
+
+sandbox.files.mkdir("/workspace/output")
+sandbox.files.move("/workspace/message.txt", "/workspace/output/message.txt")
+sandbox.files.remove("/workspace/output", recursive=True)
+```
+
+| Method | Signature |
 |---|---|
-| `tyto.create()` | Create a nest |
-| `tyto.nests` | Create / list / get nests |
-| `tyto.previews` | Inspect / revoke previews by ID |
-| `tyto.auth` | CLI browser auth flow |
-| `nest.put(local, remote)` | Upload a file or directory |
-| `nest.get(remote, local)` | Download a file or directory |
-| `nest.create_session()` | Create a managed session |
-| `nest.create_preview()` | Create a preview URL |
-| `nest.create_snapshot()` | Create a snapshot |
-| `nest.delete_snapshot()` | Delete a snapshot |
-| `nest.fs` | Low-level file upload / download |
-| `nest.sessions` | Managed sessions (create / list) |
-| `nest.previews` | Previews scoped to the nest |
-| `nest.snapshots` | Snapshots + fork/restore |
-| `nest.holds` | Keepalive holds |
-| `session.attach()` | Prepare a grant and stream a session's I/O over WebSocket |
-| `nest.console()` | Prepare a grant and open an interactive shell PTY |
-| `nest.exec_tty()` | Prepare a grant and run a one-off TTY command |
+| `read` | `(path: str) -> bytes` |
+| `write` | `(path: str, data: bytes \| str) -> None` |
+| `upload` | `(local_path: str \| os.PathLike[str], remote_path: str) -> None` |
+| `download` | `(remote_path: str, local_path: str \| os.PathLike[str]) -> None` |
+| `list` | `(path: str) -> list[FileInfo]` |
+| `stat` | `(path: str) -> FileInfo` |
+| `mkdir` | `(path: str) -> None` |
+| `remove` | `(path: str, recursive: bool = False) -> None` |
+| `move` | `(source: str, destination: str) -> None` |
+
+`read()` buffers the whole file and raises `FilesystemLimitError` before
+exceeding `filesystem_read_limit`. `write()` streams in 64 KiB chunks
+through a guest-side temp file and publishes atomically; a symlink at the
+final path is not followed. `upload()`/`download()` stream in 64 KiB
+chunks; `download()` uses a temp file, fsync, and atomic `os.replace`.
+`list()` returns immediate children sorted by name, or raises — no
+partial results. `stat()` returns lstat-style metadata (a final symlink is
+reported as a symlink, not followed). `move()` is same-filesystem, atomic,
+no-overwrite — cross-filesystem raises `CrossFilesystemMoveError`,
+existing destination raises `RemoteFileExistsError`. `remove(recursive=True)`
+recurses without following symlinks and is not atomic.
+
+`FileInfo` is immutable: `path`, `name`, `kind` (`FileKind.FILE` /
+`DIRECTORY` / `SYMLINK` / `OTHER`), `size`, `mode`, `modified_at`.
+
+## Preview URLs
+
+A preview publishes one guest port at an HTTPS URL a browser can open. The
+server must bind a port in 1024–65535; privileged ports are never
+previewable.
+
+```python
+preview = sandbox.previews.create(3000, name="web")
+print(preview.url)          # https://pv-<26 chars>.preview.tyto.run
+
+sandbox.previews.list()
+sandbox.previews.delete(preview.id)
+```
+
+A token-mode preview needs the sandbox's capability, and a URL isn't a
+safe place to leave one. `sandbox.previews.browser_url(preview)` produces
+a single-use entry point: the gateway validates the token, trades it for a
+host-scoped `HttpOnly` cookie, and redirects without the token in the URL.
+It raises on a public preview, which has no token to exchange.
+
+```python
+public = sandbox.previews.create(8080, auth=PreviewAuth.PUBLIC)
+```
+
+`PreviewAuth.PUBLIC` means anyone with the URL reaches the service, no
+credential — the only protection is the 26 random characters in the
+hostname. `TOKEN` is the default; an omitted `auth` never yields a public
+URL.
+
+`create()` returns a fresh capability and the SDK stores it on the sandbox
+automatically (the preview scope is newer than a sandbox's original
+token). If you're holding a capability elsewhere, refresh it explicitly
+with `sandbox.reissue_capability()`.
+
+Traffic to a preview URL wakes a suspended sandbox; the first request
+after suspend pays resume latency and may return `503` with `Retry-After`.
+
+## Snapshots
+
+<Note>
+Snapshots exist only through the SDKs (and the `tyto` CLI) over gRPC —
+there is no public REST endpoint for creating or deleting them.
+</Note>
+
+```python
+snapshot = sandbox.snapshot(idempotency_key="snapshot-job-123")
+print(snapshot.id, snapshot.source_sandbox_id)
+
+snapshot.delete()
+snapshot.delete()  # local no-op
+```
+
+`sandbox.snapshot(idempotency_key=None)` returns `Snapshot`. If
+`idempotency_key` is omitted, the SDK generates and reuses one for
+transport retries; the same key against the same source sandbox returns
+the same snapshot identity on idempotent replay.
+
+Snapshot create requires a running source sandbox: a locally deleted or
+observed-deleted sandbox raises `SandboxDeletedError`, a failed one raises
+`SandboxFailedError`, a suspended one raises `SandboxSuspendedError`.
+
+`snapshot.delete()` returns `None` and is idempotent on the same object. A
+snapshot has its own identifier — you can delete it after deleting the
+sandbox that produced it.
+
+## Error handling
+
+All SDK exceptions inherit from `TytoError`.
+
+```python
+from tyto import AuthenticationError, SandboxNotFoundError
+
+try:
+    client.sandboxes.get("sbx_123")
+except AuthenticationError:
+    print("check BONYA_API_KEY")
+except SandboxNotFoundError:
+    print("sandbox does not exist or is not visible")
+```
+
+| Error | Meaning |
+|---|---|
+| `AuthenticationError` | Invalid or rejected API key. |
+| `InvalidRequestError` | Invalid local arguments or invalid service response. |
+| `SandboxNotFoundError` | Sandbox missing, deleted, or not visible to the key. |
+| `SandboxDeletedError` | Operation can't run — sandbox is deleted. |
+| `SandboxSuspendedError` | Operation reported a suspended sandbox. |
+| `SandboxBusyError` | Service rejected a lifecycle operation as busy. |
+| `SandboxFailedError` | Operation can't run — sandbox failed. |
+| `SandboxCreationFailedError` | Create reached a failed terminal state. |
+| `SandboxCreationTimeoutError` | Create deadline expired. |
+| `CapabilityRejectedError` | Guest capability rejected and couldn't be refreshed. |
+| `SessionExistsError` | `sessions.create()` targeted a name with a non-replaceable record. |
+| `SessionNotFoundError` | `sessions.attach()`/`.kill()` named a session that doesn't exist. |
+| `FilesystemError` | General filesystem failure. |
+| `RemoteFileNotFoundError` | Remote file or directory missing. |
+| `RemoteFileExistsError` | Remote destination already exists. |
+| `CrossFilesystemMoveError` | Remote move crosses filesystems. |
+| `FilesystemLimitError` | Client or service filesystem size/frame limit. |
+| `ExecFailedError` | `ExecResult.check()` or `check=True` saw a non-ok result. |
+| `TimeoutError` | Operation deadline expired; also subclasses builtin `TimeoutError`. |
+| `ConnectionError` | Retryable transport failure exhausted retries; also subclasses builtin `ConnectionError`. |
+| `ServiceError` | Service or unexpected transport failure not covered above. |
+
+The SDK redacts API keys, capabilities, selected operation identifiers,
+and path-like internal details from mapped service error messages.
+
+## Resource cleanup
+
+Use context managers for deterministic cleanup:
+
+```python
+with Tyto() as client:
+    with client.sandboxes.create(template="ubuntu-24.04") as sandbox:
+        with sandbox.exec_stream(["cat"]) as session:
+            session.write(b"hello\n")
+            session.close_stdin()
+            for event in session:
+                ...
+```
+
+- `Tyto.close()` closes cached channels and is idempotent.
+- `Sandbox.__exit__` deletes the sandbox.
+- `sandbox.delete()` affects the remote sandbox and updates the local
+  handle to `Status.DELETED`.
+- `ExecSession.__exit__` closes the session; closing an unfinished session
+  cancels the remote exec.
+- `SessionStream.__exit__` detaches; closing an unfinished session
+  detaches the guest process rather than killing it — it keeps running.
+- `Snapshot.delete()` deletes the remote snapshot and is a local no-op
+  when repeated.
+
+For intentionally persistent sandboxes, don't use `with sandbox:`. Store
+`sandbox.id`, close the client, and reconnect later with
+`client.sandboxes.get(id)`.
 
 ## Examples
 
-The SDK repo ships runnable examples covering these flows:
+Runnable programs ship in the SDK's `examples/` directory:
+
+| File | Shows |
+|---|---|
+| `quickstart.py` | Create, exec, clean up |
+| `exec_streaming.py` | Streaming output and stdin |
+| `files.py` | Read, write, upload, download, list |
+| `sessions.py` | Persistent terminals and replay |
+| `previews.py` | Publishing a port to a browser |
+| `snapshots.py` | Capturing sandbox state |
 
 ```bash
+export BONYA_API_KEY=byk_...
 python examples/quickstart.py
-python examples/files.py
-python examples/preview.py
-python examples/snapshot_fork.py
-python examples/websocket_exec.py
 ```
