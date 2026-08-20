@@ -17,8 +17,8 @@ Create a new sandbox — an isolated cloud compute environment — from a templa
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `template_id` | string | yes | Template to create the sandbox from, e.g. `"ubuntu-24.04"`. There is no template-listing endpoint; use a known template id. |
-| `template_version` | string | no | Specific template version. Defaults to the template's latest. |
+| `template_id` | string | no | Template to create the sandbox from, e.g. `"ubuntu-24.04"`. Omit it to use the deployment default. The REST catalog is available at `GET /v1/templates`. |
+| `template_version` | string | no | Specific template version. Requires `template_id`; otherwise the server selects that template's default version. |
 | `name` | string (max 80) | no | Display label. Not unique — every lookup is by `sandbox_id`. |
 | `wait` | boolean | no | If true, block until the sandbox is ready instead of returning immediately. |
 

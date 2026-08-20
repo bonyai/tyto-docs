@@ -48,9 +48,11 @@ There is no start, stop, wake, fork, or restore endpoint. Resume is the only exp
 POST /v1/sandbox
 ```
 
-The request body (`SandboxCreate`) requires `template_id`. Optional fields:
+The request body (`SandboxCreate`) can omit `template_id` when the deployment
+has a configured default template. Otherwise, `template_id` is required.
+Optional fields:
 
-- `template_version` — pins a specific template version.
+- `template_version` — pins a specific template version; requires `template_id`.
 - `name` — display label, up to 80 characters. Not unique (see above).
 - `network` — a `NetworkPolicy` controlling egress (see below).
 

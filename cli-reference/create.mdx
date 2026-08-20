@@ -12,16 +12,17 @@ Starts a new sandbox from a template.
 ```shell
 tyto create --template ubuntu-24.04        # generated name
 tyto create web --template ubuntu-24.04    # named "web"
+tyto create                               # deployment default template
 ```
 
-`--template` is required; there is no default. The name is optional and **positional** — leave it out and the service generates a friendly one (like `swift-otter-9c3f`), which is printed as part of the result. Names are not unique, so two sandboxes can share the same one.
+When `--template` is omitted, the CLI uses the deployment's configured default template. The name is optional and **positional** — leave it out and the service generates a friendly one (like `swift-otter-9c3f`), which is printed as part of the result. Names are not unique, so two sandboxes can share the same one.
 
 ## Flags
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--template` | — | Template to create the sandbox from. **Required.** |
-| `--version` | server default | Template version to use. |
+| `--template` | deployment default | Template to create the sandbox from. Interactive terminals offer the published catalog when omitted. |
+| `--version` | server-selected version | Template version to use. Requires `--template`. |
 | `--wait` | `ready` | Either `ready` (block until the sandbox is ready) or `none` (return immediately after the create call is accepted). |
 | `--idempotency-key` | — | Idempotency key for the create request. |
 | `--name` | — | Display name for the sandbox. Prefer the positional form; kept for scripts written against it before the positional form existed. |

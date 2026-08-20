@@ -3,42 +3,71 @@ title: Templates
 description: The image a sandbox is created from
 ---
 
-Every sandbox is created from a **template**, identified by `template_id` — a caller-supplied string, not a value chosen from a catalog.
+Every sandbox starts from a **template**. The deployment publishes an immutable
+catalog of template IDs and versions at `GET /v1/templates`.
 
-## Specifying a template
+## Discovering templates
 
-<ParamField body="template_id" type="string" required>
-  Identifies the image to create the sandbox from.
+```http
+GET /v1/templates
+```
+
+The catalog is shared by every caller in the deployment and is not scoped to
+an organization. Each entry includes its `template_id`, immutable `version`,
+digest, and optional metadata: a description, base OS, preinstalled language
+stacks, and available agent CLIs.
+
+```json
+{
+  "templates": [{
+    "template_id": "ubuntu-24.04-sessions",
+    "version": "2026.08",
+    "digest": "sha256:…",
+    "is_default": true,
+    "metadata": {
+      "description": "Ubuntu base image with session support.",
+      "os": "ubuntu",
+      "os_version": "24.04",
+      "stacks": [{ "name": "go", "version": "1.25" }],
+      "agent_cli_support": ["codex"]
+    }
+  }]
+}
+```
+
+`is_default` applies **within a template ID**: it identifies the version the
+service resolves when a request names that ID but omits its version. It is not
+a deployment-wide default, so more than one catalog entry can have
+`is_default: true`.
+
+## Creating from a template
+
+<ParamField body="template_id" type="string">
+  Identifies the image to create the sandbox from. Omit it, along with
+  `template_version`, to use the deployment's configured default template.
 </ParamField>
 <ParamField body="template_version" type="string">
-  Optionally pins a specific version of the template.
+  Optionally pins a specific immutable version. It is only meaningful with a
+  `template_id`.
 </ParamField>
 
-Both are set on [sandbox create](/concepts/sandboxes#creating-a-sandbox) (`POST /v1/sandbox`). The created `Sandbox` echoes back `template_id` and `template_version` so you can see what was actually resolved.
+Both fields are set on [sandbox create](/concepts/sandboxes#creating-a-sandbox)
+(`POST /v1/sandbox`). The created `Sandbox` echoes the resolved
+`template_id` and `template_version`.
 
-<Warning>
-There is no template-listing or template-registry endpoint in the API. `template_id` is a string you supply, not a value you look up from a catalog — the API doesn't expose a way to enumerate available templates.
-</Warning>
-
-## A common starting point
-
-The CLI and SDK examples consistently use `"ubuntu-24.04"` as the `template_id` when creating a sandbox:
-
-<CodeGroup>
-```shell CLI
-tyto create --template ubuntu-24.04
+```json
+{ "template_id": "ubuntu-24.04-sessions" }
 ```
 
-```python Python
-sandbox = client.create_sandbox(template="ubuntu-24.04")
+The request above uses the selected template ID's default version. To use the
+deployment default template instead, send an empty body (or omit both template
+fields):
+
+```json
+{}
 ```
 
-```go Go
-sandbox, err := client.CreateSandbox(ctx, "ubuntu-24.04")
-```
-</CodeGroup>
-
-This isn't a default enforced by the API — `template_id` is required on every create call — but it's the value used throughout the CLI and SDK documentation and examples.
+If the deployment has no configured default, `template_id` is required.
 
 ## Related
 

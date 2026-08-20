@@ -78,6 +78,27 @@ paths:
                 required: [sandbox]
                 properties: { sandbox: { $ref: '#/components/schemas/Sandbox' } }
         default: { $ref: '#/components/responses/Problem' }
+  /v1/templates:
+    get:
+      operationId: listTemplates
+      summary: >
+        The deployment's immutable template catalog: every template_id and
+        version Create/RunJob will accept, and which version each template_id
+        resolves to when a caller omits version. Same catalog for every
+        caller; no organization context.
+      responses:
+        '200':
+          description: Template catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [templates]
+                properties:
+                  templates:
+                    type: array
+                    items: { $ref: '#/components/schemas/Template' }
+        default: { $ref: '#/components/responses/Problem' }
   /v1/sandbox/{sandbox_id}:
     parameters:
       - $ref: '#/components/parameters/SandboxID'
@@ -806,9 +827,12 @@ components:
         next_page_token: { type: string }
     SandboxCreate:
       type: object
-      required: [template_id]
       properties:
-        template_id: { type: string }
+        template_id:
+          type: string
+          description: >-
+            Omit to use the deployment's configured default template, if it
+            has one; otherwise required.
         template_version: { type: string }
         network: { $ref: '#/components/schemas/NetworkPolicy' }
         # Optional display label. Blank or omitted means the service generates
@@ -906,6 +930,38 @@ components:
       enum: [owner, member]
       default: member
       description: Custom roles are out of scope; the set is closed.
+    Template:
+      type: object
+      required: [template_id, version, digest, is_default, metadata]
+      properties:
+        template_id: { type: string }
+        version: { type: string }
+        digest: { type: string }
+        is_default:
+          type: boolean
+          description: >
+            True if this is the version its template_id resolves to when a
+            Create/RunJob request omits version.
+        metadata: { $ref: '#/components/schemas/TemplateMetadata' }
+    TemplateMetadata:
+      type: object
+      description: Optional facts about the template's operating system and tools.
+      properties:
+        description: { type: string }
+        os: { type: string }
+        os_version: { type: string }
+        stacks:
+          type: array
+          items: { $ref: '#/components/schemas/TemplateStack' }
+        agent_cli_support:
+          type: array
+          items: { type: string }
+    TemplateStack:
+      type: object
+      required: [name, version]
+      properties:
+        name: { type: string }
+        version: { type: string }
     Organization:
       type: object
       required: [organization_id, name, personal, created_at]

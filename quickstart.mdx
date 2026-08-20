@@ -45,7 +45,7 @@ This walks through the smallest possible loop: get a key, create a sandbox, run 
     </CodeGroup>
   </Step>
   <Step title="Create a sandbox">
-    Every sandbox needs a `template_id`. `POST /v1/sandbox` returns `202` immediately by default, with the sandbox still `CREATING` — pass `?wait=ready` to block until it's up and get `201` back instead.
+    A sandbox can name a `template_id`, or omit it to use the deployment's configured default template. `POST /v1/sandbox` returns `202` immediately by default, with the sandbox still `CREATING` — pass `?wait=ready` to block until it's up and get `201` back instead.
 
     <CodeGroup>
     ```shell cURL
