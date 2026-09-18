@@ -41,7 +41,7 @@ from tyto import Tyto
 
 client = Tyto(
     api_key="byk_...",
-    endpoint="https://api.tyto.run",
+    organization_id="org_123",
 )
 ```
 </CodeGroup>
@@ -51,29 +51,30 @@ client = Tyto(
 | Argument | Environment variable | Default |
 |---|---|---|
 | `api_key` | `BONYA_API_KEY` | *required* |
-| `endpoint` | `BONYA_ENDPOINT` | `https://api.tyto.run` |
 | `organization_id` | `BONYA_ORGANIZATION_ID` | your personal organization |
 | `ca_bundle` | `BONYA_CA_BUNDLE` | system trust store |
 | `timeout` | — | `30` seconds |
 | `max_retries` | — | `2` |
 | `filesystem_read_limit` | — | 64 MiB |
 
-`api_key` is required. `endpoint` must be an HTTPS URL — the SDK rejects
-non-HTTPS URLs, URLs with userinfo, query strings, fragments, malformed
-ports, or no host. `ca_bundle` points to a PEM bundle for private
+`api_key` is required. `ca_bundle` points to a PEM bundle for private
 development CAs; if it can't be read, the SDK raises `InvalidRequestError`.
 
 `timeout` is the default per-operation deadline in seconds; buffered and
 streaming exec calls can override it with `timeout=`. `max_retries`
 controls SDK retries for retryable control-plane operations (create, get,
-list, delete, resume, snapshot create, snapshot delete). `filesystem_read_limit`
-caps bytes buffered by `sandbox.files.read()`.
+list, delete, resume, snapshot create, snapshot delete) — it retries gRPC
+`UNAVAILABLE` while preserving the same request and idempotency key where
+one exists. `filesystem_read_limit` caps bytes buffered by
+`sandbox.read_file()`.
 
 <Note>
 An empty `organization_id` (or `BONYA_ORGANIZATION_ID=""`) raises
 `InvalidRequestError` rather than silently falling back to your personal
 organization — this avoids CI jobs quietly running against the wrong
-tenant when a variable expansion is empty.
+tenant when a variable expansion is empty. See
+[Organizations](/sdks/python/usage#organizations) for the full precedence
+and a CI example.
 </Note>
 
 Close the client when done, or use `with`, which does it for you. Calling
@@ -85,7 +86,7 @@ SDK methods after `client.close()` raises `InvalidRequestError`.
 from tyto import Tyto
 
 with Tyto() as client:                                     # reads BONYA_API_KEY
-    with client.sandboxes.create(template="ubuntu-24.04") as sandbox:
+    with client.create_sandbox(template="bonya-dev") as sandbox:
         result = sandbox.exec(["echo", "hello"], check=True)
         print(result.stdout)                               # hello
 ```

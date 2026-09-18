@@ -10,8 +10,8 @@ description: Create a new sandbox from a template
 Starts a new sandbox from a template.
 
 ```shell
-tyto create --template ubuntu-24.04        # generated name
-tyto create web --template ubuntu-24.04    # named "web"
+tyto create --template bonya-dev        # generated name
+tyto create web --template bonya-dev    # named "web"
 tyto create                               # deployment default template
 ```
 
@@ -32,7 +32,7 @@ When `--template` is omitted, the CLI uses the deployment's configured default t
 If you pass both a positional name and `--name` and they disagree, `create` fails:
 
 ```console
-$ tyto create web --name api --template ubuntu-24.04
+$ tyto create web --name api --template bonya-dev
 name given twice: "web" and --name "api"
 ```
 
@@ -43,11 +43,11 @@ Passing the same value both ways is harmless. In new scripts, prefer the positio
 On an interactive terminal, once the sandbox is ready `create` offers to open a console in it immediately — press Enter to accept (the prompt defaults to yes):
 
 ```console
-$ tyto create --template ubuntu-24.04
+$ tyto create --template bonya-dev
 id           sbx-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b
 name         swift-otter-9c3f
 status       running
-template     ubuntu-24.04
+template     bonya-dev
 ...
 
 Open a console now? (Y/n)
@@ -64,18 +64,18 @@ This offer is skipped — and the "open a shell with" hint is printed instead �
 
 <CodeGroup>
 ```shell Generated name
-tyto create --template ubuntu-24.04
+tyto create --template bonya-dev
 ```
 
 ```shell Explicit name
-tyto create web --template ubuntu-24.04
+tyto create web --template bonya-dev
 ```
 
 ```shell Don't wait for the sandbox to be ready
-tyto create --template ubuntu-24.04 --wait none
+tyto create --template bonya-dev --wait none
 ```
 
 ```shell Pin a template version
-tyto create --template ubuntu-24.04 --version 2024.11
+tyto create --template bonya-dev --version 2024.11
 ```
 </CodeGroup>

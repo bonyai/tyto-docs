@@ -85,6 +85,12 @@ Each `SessionInfo` reports:
 
 `EXITED`, `KILLED`, and `FAILED` are the terminal states referenced above under name collisions; `STARTING`, `IDLE`, and `ATTACHED` are all live.
 
+## Sessions and suspension
+
+A session's process never blocks idle suspend by itself. Only an **attached** client does, for as long as it stays connected — a quiet, detached session lets the sandbox warm-suspend on its normal idle schedule, and survives the resume with its process and replay buffer intact, the same session rather than a new one. Output the session keeps producing while detached still counts as activity and defers idle suspend on its own.
+
+Attaching to a session on a suspended sandbox wakes it, the same way exec traffic does — see [Sandboxes](/concepts/sandboxes#lifecycle-states) for the resume path.
+
 ## Listing sessions
 
 ```

@@ -37,6 +37,12 @@ Roles are a closed set — `owner` or `member`, defaulting to `member`. There ar
 An organization's **final owner** can't be demoted or removed — both return `409 final_owner`. This is also why the sole owner of a personal organization can't leave it: a personal organization always has exactly one member, who is always its owner.
 </Warning>
 
+## Organization context in the SDKs
+
+Every SDK reads an organization id from the environment (`BONYA_ORGANIZATION_ID`) or accepts an explicit override at client construction, and resends it as `X-Bonya-Organization-ID` on every control-plane call. All three deliberately treat an **explicitly empty** value as an error rather than a silent fallback to your personal organization — `BONYA_ORGANIZATION_ID=""`, or the equivalent constructor argument set to `""`, raises immediately instead of quietly resolving to your personal tenant.
+
+This matters most in CI: an unset variable expanded into another one often evaluates to an empty string, and running a shared pipeline's jobs against whichever engineer's personal organization happens to own the credential is a worse failure mode than an immediate, loud error. Set `BONYA_ORGANIZATION_ID` explicitly in CI rather than relying on the personal-organization default.
+
 ## Administration is JWT-only
 
 <Note>

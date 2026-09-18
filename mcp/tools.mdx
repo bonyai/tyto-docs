@@ -3,7 +3,7 @@ title: Tools
 description: Tools exposed by the Tyto MCP server
 ---
 
-The server registers 14 tools across four groups: sandboxes, exec & filesystem, sessions, and previews.
+The server registers 31 tools across six groups: sandboxes, exec & filesystem, sessions, previews, jobs, and job schedules — plus a `template_list` tool for discovering what templates are available. Every tool takes and returns plain JSON — ids, not objects, are how you chain calls together (e.g. `sandbox_create` → its `sandbox_id` → `sandbox_exec`).
 
 <Note>
 Results are returned as pretty-printed JSON text. Errors are returned as MCP tool errors (`isError: true`) formatted as `Tyto API error <status> (<code>): <detail>`, using the `code`/`detail` fields from the API's RFC 9457 problem+json error body.
@@ -17,7 +17,7 @@ Create a new sandbox — an isolated cloud compute environment — from a templa
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `template_id` | string | no | Template to create the sandbox from, e.g. `"ubuntu-24.04"`. Omit it to use the deployment default. The REST catalog is available at `GET /v1/templates`. |
+| `template_id` | string | no | Template to create the sandbox from, e.g. `"bonya-dev"`. Omit it to use the deployment default. The REST catalog is available at `GET /v1/templates`. |
 | `template_version` | string | no | Specific template version. Requires `template_id`; otherwise the server selects that template's default version. |
 | `name` | string (max 80) | no | Display label. Not unique — every lookup is by `sandbox_id`. |
 | `wait` | boolean | no | If true, block until the sandbox is ready instead of returning immediately. |
@@ -249,8 +249,146 @@ Delete a preview by id, immediately disabling its URL. Idempotent.
 
 **Returns:** `{ ok: true, deleted: "<preview_id>" }`.
 
+## Jobs
+
+A job is a managed run of a command or script — on a new sandbox (created and, by default, deleted for you) or an existing one. `wait: false` (the default) returns a `run_id` immediately; `wait: true` blocks for the result.
+
+### `job_create`
+
+Create and start a job run.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `job` | object | yes | The job spec — exactly one of `new_sandbox`/`existing_sandbox_id` and exactly one of `cmd`/`script`. |
+| `job.new_sandbox` | object | one of | `{ template_id?, ... }` — creates a sandbox for this run. |
+| `job.existing_sandbox_id` | string | one of | Run on a sandbox that already exists. |
+| `job.cmd` | array of string | one of | Argv to run. |
+| `job.script` | string | one of | A shell script to run instead of `cmd`. |
+| `job.disposition` | enum: `delete`, `keep` | no | What happens to a sandbox the job itself created once the run ends. Default `delete`. Ignored for `existing_sandbox_id`. |
+| `wait` | boolean | no | If true, block until the run finishes instead of returning immediately with a `run_id`. |
+
+**Returns:** `{ run: { run_id, status, result? } }` — `result` (`{ exit_code, stdout, stderr, ... }`) is present once the run completes, whether or not you waited for it.
+
+<Note>
+There's no endpoint to edit a run in place: to "edit and rerun" one, call `job_get` for its stored `job` spec, change what you need, and pass it to `job_create` as a new run.
+</Note>
+
+### `job_list`
+
+List job runs, optionally filtered to one sandbox. Paginated.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sandbox_id` | string | no | Restrict to runs on this sandbox. |
+| `page_size` | integer | no | Page size. |
+| `page_token` | string | no | Pagination token from a previous response. |
+
+**Returns:** `{ runs: [...], next_page_token? }` — each entry is a run summary, not the full detail `job_get` returns.
+
+### `job_get`
+
+Fetch a single run's full detail, including its stored `job` spec and activity timeline.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `run_id` | string | yes | The job run id. |
+
+**Returns:** `{ run: { run_id, status, spec, timeline, result? } }`.
+
+### `job_cancel`
+
+Request cancellation of a running job. Cancels rather than terminates — the run's own cleanup (e.g. deleting a sandbox it created) still executes.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `run_id` | string | yes | The job run id. |
+
+**Returns:** `{ ok: true, canceled: "<run_id>" }`.
+
+## Job schedules
+
+A schedule wraps a `job` spec (the same shape `job_create` takes) with timing: `cron_expressions`, `interval_s`, or a one-shot `run_at_unix_nanos` — exactly one of the three.
+
+### `job_schedule_create`
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `schedule` | object | yes | Timing — exactly one of `cron_expressions`, `interval_s`, `run_at_unix_nanos`. |
+| `job` | object | yes | The job spec to run on each fire, same shape as `job_create`'s `job`. |
+
+**Returns:** `{ schedule: { schedule_id, next_run_at_unix_nanos, ... } }`.
+
+### `job_schedule_list`
+
+**Returns:** `{ schedules: [...] }`.
+
+### `job_schedule_get`
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `schedule_id` | string | yes | The schedule id. |
+
+**Returns:** `{ schedule: { ..., recent_run_ids } }` — `recent_run_ids` holds the last 10 fires' run ids (oldest first, including manual triggers), each a valid `job_get` id.
+
+### `job_schedule_update`
+
+Replaces the whole schedule — re-send every field you want to keep, not just the one you're changing.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `schedule_id` | string | yes | The schedule id. |
+| `schedule` | object | yes | Full replacement timing spec. |
+| `job` | object | yes | Full replacement job spec. |
+
+**Returns:** `{ schedule: {...} }`.
+
+### `job_schedule_delete`
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `schedule_id` | string | yes | The schedule id. |
+
+**Returns:** `{ ok: true, deleted: "<schedule_id>" }`.
+
+### `job_schedule_pause`
+
+Pause or resume a schedule without deleting it.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `schedule_id` | string | yes | The schedule id. |
+| `paused` | boolean | yes | `true` to pause, `false` to resume. |
+| `note` | string | no | Optional note recorded with the pause/resume. |
+
+**Returns:** `{ schedule: {...} }`.
+
+### `job_schedule_trigger`
+
+Fires one run immediately, ignoring the schedule's own timing — useful for testing a schedule without waiting for it.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `schedule_id` | string | yes | The schedule id. |
+
+**Returns:** `{ ok: true, run_id }`.
+
+## Templates
+
+### `template_list`
+
+Lists every `template_id`/version `sandbox_create` and `job_create` will accept, with metadata (OS, installed language stacks, which AI agent CLIs are preinstalled) to help pick one. Not paginated — the catalog is the same for every caller.
+
+**Returns:** `{ templates: [{ template_id, version, is_default, metadata }, ...] }`.
+
 ## Not exposed as tools
 
 <Note>
 The API's WebSocket endpoints (TTY `exec`, session `attach`) are not exposed as tools — they don't fit a request/response MCP tool. `sandbox_exec` covers non-interactive commands via the buffered `POST .../exec` endpoint; `session_create` covers long-running background processes. Sandboxes suspend automatically; `sandbox_resume` is the only explicit lifecycle verb (there is no separate start/stop). Snapshots are managed exclusively through the gRPC SDK and have no REST endpoints, so they are out of scope for this server.
 </Note>
+
+## Gotchas
+
+- **Sandbox capacity is capped per account** (a low single-digit number by default). If `sandbox_create` or `job_create`'s `new_sandbox` path returns `429 rate_limited: request capacity is exhausted`, you're at your limit — free a slot with `sandbox_delete` or wait for a job-created sandbox to finish, rather than retrying immediately.
+- **`session_kill`'s parameter is `session_name`**, not `name` — easy to get wrong since `session_create` takes `name`.
+- **A job's `disposition` only applies to a sandbox the job itself created** (`new_sandbox`); it's ignored for `existing_sandbox_id`. Default is `delete`, so a job-created sandbox disappears automatically once the run ends, however it ends (including on `job_cancel`).
+- **Errors are RFC 9457 `problem+json`**, surfaced as `Tyto API error <status> (<code>): <message>` — the `code` is the stable machine-readable part if you're branching on error type.

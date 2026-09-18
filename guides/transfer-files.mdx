@@ -20,15 +20,15 @@ tyto fs upload $SANDBOX_ID ./hello.txt /workspace/hello.txt
 ```
 
 ```ts TypeScript
-await sandbox.files.upload("./hello.txt", "/workspace/hello.txt");
+await sandbox.uploadFile("./hello.txt", "/workspace/hello.txt");
 ```
 
 ```python Python
-sandbox.files.upload("./hello.txt", "/workspace/hello.txt")
+sandbox.upload_file("./hello.txt", "/workspace/hello.txt")
 ```
 
 ```go Go
-sandbox.Files.Upload(ctx, "./hello.txt", "/workspace/hello.txt")
+sandbox.UploadFile(ctx, "./hello.txt", "/workspace/hello.txt")
 ```
 </CodeGroup>
 
@@ -48,15 +48,15 @@ tyto fs download $SANDBOX_ID /workspace/hello.txt ./hello.downloaded.txt
 ```
 
 ```ts TypeScript
-await sandbox.files.download("/workspace/hello.txt", "./hello.downloaded.txt");
+await sandbox.downloadFile("/workspace/hello.txt", "./hello.downloaded.txt");
 ```
 
 ```python Python
-sandbox.files.download("/workspace/hello.txt", "./hello.downloaded.txt")
+sandbox.download_file("/workspace/hello.txt", "./hello.downloaded.txt")
 ```
 
 ```go Go
-sandbox.Files.Download(ctx, "/workspace/hello.txt", "./hello.downloaded.txt")
+sandbox.DownloadFile(ctx, "/workspace/hello.txt", "./hello.downloaded.txt")
 ```
 </CodeGroup>
 
@@ -72,13 +72,13 @@ For short text content you don't want to stage as a local file first, `read`/`wr
 
 <CodeGroup>
 ```ts TypeScript
-await sandbox.files.write("/workspace/message.txt", "hello\n");
-const payload = await sandbox.files.read("/workspace/message.txt");
+await sandbox.writeFile("/workspace/message.txt", "hello\n");
+const payload = await sandbox.readFile("/workspace/message.txt");
 ```
 
 ```python Python
-sandbox.files.write("/workspace/message.txt", "hello\n")
-payload = sandbox.files.read("/workspace/message.txt")
+sandbox.write_file("/workspace/message.txt", "hello\n")
+payload = sandbox.read_file("/workspace/message.txt")
 ```
 </CodeGroup>
 
@@ -95,11 +95,11 @@ tyto fs ls $SANDBOX_ID /workspace
 ```
 
 ```ts TypeScript
-const entries = await sandbox.files.list("/workspace");
+const entries = await sandbox.listFiles("/workspace");
 ```
 
 ```python Python
-entries = sandbox.files.list("/workspace")
+entries = sandbox.list_files("/workspace")
 ```
 </CodeGroup>
 
@@ -118,11 +118,11 @@ tyto fs stat $SANDBOX_ID /workspace/hello.txt
 ```
 
 ```ts TypeScript
-const info = await sandbox.files.stat("/workspace/hello.txt");
+const info = await sandbox.statFile("/workspace/hello.txt");
 ```
 
 ```python Python
-info = sandbox.files.stat("/workspace/hello.txt")
+info = sandbox.stat_file("/workspace/hello.txt")
 ```
 </CodeGroup>
 
@@ -156,15 +156,15 @@ tyto fs rm $SANDBOX_ID /workspace/output --recursive
 ```
 
 ```ts TypeScript
-await sandbox.files.mkdir("/workspace/output");
-await sandbox.files.move("/workspace/hello.txt", "/workspace/output/hello.txt");
-await sandbox.files.remove("/workspace/output", true);
+await sandbox.mkdirFile("/workspace/output");
+await sandbox.moveFile("/workspace/hello.txt", "/workspace/output/hello.txt");
+await sandbox.removeFile("/workspace/output", true);
 ```
 
 ```python Python
-sandbox.files.mkdir("/workspace/output")
-sandbox.files.move("/workspace/hello.txt", "/workspace/output/hello.txt")
-sandbox.files.remove("/workspace/output", recursive=True)
+sandbox.mkdir_file("/workspace/output")
+sandbox.move_file("/workspace/hello.txt", "/workspace/output/hello.txt")
+sandbox.remove_file("/workspace/output", recursive=True)
 ```
 </CodeGroup>
 

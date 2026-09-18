@@ -359,6 +359,210 @@ paths:
       responses:
         '204': { description: Removed }
         default: { $ref: '#/components/responses/Problem' }
+  # Workflows (durable jobs). Member-authenticated like the sandbox surface
+  # above, not JWT-only like organization administration below: any member
+  # who can run a command interactively can run the same command as a job.
+  /v1/job:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationHeader'
+    post:
+      operationId: createJob
+      summary: >-
+        Run or start a job on a new or existing sandbox. wait=false (default)
+        starts durably and returns run_id immediately; wait=true blocks for
+        the result, bounded by the caller's own request timeout.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobRequest' }
+      responses:
+        '200':
+          description: wait=true and the run finished before the request timed out
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [run]
+                properties:
+                  run: { $ref: '#/components/schemas/JobRun' }
+        '202':
+          description: wait=false; the run was durably accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobStartResponse' }
+        default: { $ref: '#/components/responses/Problem' }
+    get:
+      operationId: listJobRuns
+      summary: List a tenant's runs, newest first
+      parameters:
+        - name: sandbox_id
+          in: query
+          schema: { type: string }
+        - name: schedule_id
+          in: query
+          schema: { type: string }
+        - name: page_size
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: page_token
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Run page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobRunPage' }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/job/{run_id}:
+    parameters:
+      - $ref: '#/components/parameters/RunID'
+      - $ref: '#/components/parameters/OrganizationHeader'
+    get:
+      operationId: getJobRun
+      summary: Full run detail, including the stored spec and an activity timeline
+      responses:
+        '200':
+          description: Run detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [run]
+                properties:
+                  run: { $ref: '#/components/schemas/JobRunDetail' }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/job/{run_id}/cancel:
+    post:
+      operationId: cancelJobRun
+      summary: >-
+        Request cancellation. Cancels rather than terminates, so the run's own
+        cleanup (e.g. deleting a sandbox it created) still executes.
+      parameters:
+        - $ref: '#/components/parameters/RunID'
+        - $ref: '#/components/parameters/OrganizationHeader'
+      responses:
+        '204': { description: Cancellation requested }
+        default: { $ref: '#/components/responses/Problem' }
+  # Schedules: a durable cron, interval, or one-shot trigger for a job. "Run
+  # once at this date and time" is a schedule with run_at_unix_nanos set and
+  # RemainingActions=1, not a separate mechanism -- see JobScheduleRequest.
+  # Member-authenticated like the job surface above.
+  /v1/job-schedule:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationHeader'
+    post:
+      operationId: createJobSchedule
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobScheduleRequest' }
+      responses:
+        '201':
+          description: Schedule created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schedule]
+                properties: { schedule: { $ref: '#/components/schemas/JobSchedule' } }
+        default: { $ref: '#/components/responses/Problem' }
+    get:
+      operationId: listJobSchedules
+      parameters:
+        - name: page_size
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: page_token
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Schedule page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobSchedulePage' }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/job-schedule/{schedule_id}:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleID'
+      - $ref: '#/components/parameters/OrganizationHeader'
+    get:
+      operationId: getJobSchedule
+      responses:
+        '200':
+          description: Schedule
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schedule]
+                properties: { schedule: { $ref: '#/components/schemas/JobSchedule' } }
+        default: { $ref: '#/components/responses/Problem' }
+    patch:
+      operationId: updateJobSchedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobScheduleRequest' }
+      responses:
+        '200':
+          description: Schedule updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schedule]
+                properties: { schedule: { $ref: '#/components/schemas/JobSchedule' } }
+        default: { $ref: '#/components/responses/Problem' }
+    delete:
+      operationId: deleteJobSchedule
+      responses:
+        '204': { description: Deleted }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/job-schedule/{schedule_id}/pause:
+    post:
+      operationId: setJobSchedulePaused
+      parameters:
+        - $ref: '#/components/parameters/ScheduleID'
+        - $ref: '#/components/parameters/OrganizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paused]
+              properties:
+                paused: { type: boolean }
+                note: { type: string }
+      responses:
+        '200':
+          description: Pause state updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schedule]
+                properties: { schedule: { $ref: '#/components/schemas/JobSchedule' } }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/job-schedule/{schedule_id}/trigger:
+    post:
+      operationId: triggerJobSchedule
+      summary: Trigger one fire immediately, overriding the schedule's own timing
+      parameters:
+        - $ref: '#/components/parameters/ScheduleID'
+        - $ref: '#/components/parameters/OrganizationHeader'
+      responses:
+        '204': { description: Triggered }
+        default: { $ref: '#/components/responses/Problem' }
   # Organization administration is JWT-only throughout -- all seven
   # operations from here to the member sub-resource below, alongside the
   # invitation surface that was already dashboard-only and x-internal.
@@ -597,6 +801,308 @@ paths:
       responses:
         '204': { description: Revoked }
         default: { $ref: '#/components/responses/Problem' }
+  # Billing (Phase 8, docs/billing-dashboard-api.md). Owner or the narrowly
+  # scoped billing role only: a member may spend an organization's credit but
+  # must not see its balance, alter it, or read invoices/coupons/payments.
+  # requireBillingManager reports 404 for a non-member and 403 for a member,
+  # matching every other organization-scoped route. An unconfigured billing
+  # adapter answers 404 on every operation below, the same answer an unknown
+  # path already gives, so a deployment without billing never confirms one
+  # way or another that the feature exists before a credential is checked.
+  /v1/organizations/{organization_id}/usage:
+    get:
+      operationId: getOrganizationUsage
+      security:
+        - supabaseJwt: []
+      summary: >-
+        Owner or billing role. Reports total recorded usage and its current
+        settled credit balance; both are unbounded (all usage recorded so
+        far), not scoped to a billing period.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationID'
+      responses:
+        '200':
+          description: Usage and credit standing
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationUsageResponse' }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/organizations/{organization_id}/topup-offers:
+    get:
+      operationId: listOrganizationTopUpOffers
+      security:
+        - supabaseJwt: []
+      summary: >-
+        Owner or billing role. Lists Lago-configured top-up offers. Neither
+        collects payment nor grants credit.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationID'
+      responses:
+        '200':
+          description: Configured offers
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [offers]
+                properties:
+                  offers:
+                    type: array
+                    items: { $ref: '#/components/schemas/TopUpOffer' }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/organizations/{organization_id}/topup-purchases:
+    post:
+      operationId: startOrganizationTopUpPurchase
+      security:
+        - supabaseJwt: []
+      summary: >-
+        Owner or billing role. Starts a Lago-hosted checkout for one
+        configured offer and returns its opaque, short-lived payment URL.
+        Reposting the same idempotency_key resumes rather than duplicates an
+        in-flight purchase; no operation here charges payment or grants
+        credit directly. Lago settles the wallet transaction after its own
+        payment flow succeeds.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idempotency_key]
+              oneOf:
+                - required: [offer_code]
+                - required: [amount_cents]
+              properties:
+                offer_code: { type: string }
+                amount_cents: { type: integer, format: int64, minimum: 500, maximum: 50000 }
+                idempotency_key: { type: string }
+      responses:
+        '200':
+          description: Checkout started or resumed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [purchase]
+                properties:
+                  purchase: { $ref: '#/components/schemas/TopUpPurchase' }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/organizations/{organization_id}/coupons:
+    get:
+      operationId: listOrganizationCoupons
+      security:
+        - supabaseJwt: []
+      summary: Owner or billing role. Lists coupons applied to the organization.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationID'
+      responses:
+        '200':
+          description: Applied coupons
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [coupons]
+                properties:
+                  coupons:
+                    type: array
+                    items: { $ref: '#/components/schemas/Coupon' }
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      operationId: applyOrganizationCoupon
+      security:
+        - supabaseJwt: []
+      summary: >-
+        Owner or billing role. Applies a Lago-managed coupon by code; pricing
+        and eligibility remain authoritative in the billing provider.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [coupon_code]
+              properties:
+                coupon_code: { type: string }
+      responses:
+        '200':
+          description: Coupon applied
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [coupon]
+                properties:
+                  coupon: { $ref: '#/components/schemas/Coupon' }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/organizations/{organization_id}/invoices:
+    get:
+      operationId: listOrganizationInvoices
+      security:
+        - supabaseJwt: []
+      summary: >-
+        Owner or billing role. page is one-based; per_page defaults to 25 and
+        is capped at 50 regardless of the value requested. A listed invoice
+        carries no billed period and no lines: the provider omits them from
+        its collection response, so both are always absent here. Read one
+        invoice to get them.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationID'
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 25 }
+      responses:
+        '200':
+          description: Invoices
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invoices]
+                properties:
+                  invoices:
+                    type: array
+                    items: { $ref: '#/components/schemas/Invoice' }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/organizations/{organization_id}/invoices/{invoice_id}:
+    get:
+      operationId: getOrganizationInvoice
+      security:
+        - supabaseJwt: []
+      summary: >-
+        Owner or billing role. Carries the full billed period, its line
+        items, and a per-member usage breakdown the provider cannot supply:
+        user ids deliberately never leave the cluster.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationID'
+        - name: invoice_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Invoice detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invoice]
+                properties:
+                  invoice: { $ref: '#/components/schemas/InvoiceDetail' }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/organizations/{organization_id}/billing:
+    get:
+      operationId: getOrganizationBilling
+      security:
+        - supabaseJwt: []
+      summary: >-
+        Owner or billing role. The Spending header: current calendar period,
+        priced usage so far, entitlement limits, both credit balances, and
+        top-up availability. degraded names any provider-dependent
+        enrichment that was attempted and did not produce a usable value;
+        it is never populated for a value that is legitimately absent (an
+        unprovisioned organization attempts no enrichment and reports an
+        empty degraded).
+      parameters:
+        - $ref: '#/components/parameters/OrganizationID'
+      responses:
+        '200':
+          description: Billing overview
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillingOverview' }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/organizations/{organization_id}/usage/breakdown:
+    get:
+      operationId: getOrganizationUsageBreakdown
+      security:
+        - supabaseJwt: []
+      summary: >-
+        Owner or billing role. from and to are both required RFC 3339
+        timestamps, unlike GET .../usage's all-time default; from must
+        precede to. Reports the two supported billable metrics with their
+        share of priced usage and each one's heaviest consumer.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationID'
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Usage breakdown
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UsageBreakdown' }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/organizations/{organization_id}/usage/series:
+    get:
+      operationId: getOrganizationUsageSeries
+      security:
+        - supabaseJwt: []
+      summary: >-
+        Owner or billing role. from and to are both required; bucket is
+        hour or day and defaults to day. Only non-empty buckets are
+        returned. estimated_cents is either present on every point or
+        absent from every point: one price read prices the whole series.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationID'
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: bucket
+          in: query
+          schema: { type: string, enum: [hour, day], default: day }
+      responses:
+        '200':
+          description: Usage series
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UsageSeries' }
+        default: { $ref: '#/components/responses/Problem' }
+  /v1/organizations/{organization_id}/payments:
+    get:
+      operationId: listOrganizationPayments
+      security:
+        - supabaseJwt: []
+      summary: >-
+        Owner or billing role. A dated credit-activity ledger merged from
+        paid top-up purchases and promotional grants, local state only --
+        no provider call. page is one-based; per_page defaults to 25 and
+        is capped at 50. Never carries a wallet id, provider transaction
+        id, or payment URL; the idempotency key is the one deliberate
+        exception, letting a billing manager resume a pending checkout.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationID'
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 25 }
+      responses:
+        '200':
+          description: Payment history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentListResponse' }
+        default: { $ref: '#/components/responses/Problem' }
   /v1/invitations/accept:
     post:
       operationId: acceptInvitation
@@ -764,6 +1270,16 @@ components:
       in: path
       required: true
       schema: { type: string }
+    RunID:
+      name: run_id
+      in: path
+      required: true
+      schema: { type: string }
+    ScheduleID:
+      name: schedule_id
+      in: path
+      required: true
+      schema: { type: string }
     PreviewID:
       name: preview_id
       in: path
@@ -817,6 +1333,9 @@ components:
         # Absent on sandboxes created before names existed; every other
         # response carries one, generated when create did not supply it.
         name: { type: string }
+        # Absent on the response to create, which does not carry it; present
+        # on get and list. Stable across suspend/resume.
+        created_at: { type: string, format: date-time }
     SandboxPage:
       type: object
       required: [sandboxes, next_page_token]
@@ -927,9 +1446,13 @@ components:
           items: { $ref: '#/components/schemas/Preview' }
     Role:
       type: string
-      enum: [owner, member]
+      enum: [owner, member, billing]
       default: member
-      description: Custom roles are out of scope; the set is closed.
+      description: >-
+        Custom roles are out of scope; the set is closed. billing may consume
+        the billing surface (balances, invoices, coupons, payments, top-ups)
+        but is not an owner: it cannot manage members, invitations, or
+        organization settings.
     Template:
       type: object
       required: [template_id, version, digest, is_default, metadata]
@@ -945,16 +1468,30 @@ components:
         metadata: { $ref: '#/components/schemas/TemplateMetadata' }
     TemplateMetadata:
       type: object
-      description: Optional facts about the template's operating system and tools.
+      description: >
+        What a template actually offers, for both a human choosing one in a
+        UI and an LLM choosing one on a caller's behalf. Every field is
+        optional: a catalog entry the operator never annotated reports every
+        field empty rather than failing to list.
       properties:
-        description: { type: string }
-        os: { type: string }
-        os_version: { type: string }
+        description:
+          type: string
+          description: A short, human- and LLM-readable summary of the template's purpose.
+        os:
+          type: string
+          description: >-
+            The guest's base operating system, e.g. "ubuntu". Free text --
+            not validated against a known-OS list.
+        os_version: { type: string, description: 'e.g. "latest" or "24.04".' }
         stacks:
           type: array
+          description: Every language/runtime toolchain preinstalled in the template.
           items: { $ref: '#/components/schemas/TemplateStack' }
         agent_cli_support:
           type: array
+          description: >-
+            AI agent CLIs preinstalled and on PATH, e.g. "claude-code",
+            "codex", "gemini-cli".
           items: { type: string }
     TemplateStack:
       type: object
@@ -1013,6 +1550,339 @@ components:
         consumed_at: { type: string, format: date-time }
         consumed_by_user_id: { type: string }
         revoked_at: { type: string, format: date-time }
+    BillingMemberUsage:
+      type: object
+      description: >-
+        One member's share of usage. An empty user id is the unattributed
+        bucket -- usage whose opening actor record was lost -- reported as
+        unattributed: true rather than an empty user_id, so a consumer cannot
+        mistake it for a member whose id failed to render. Exactly one of
+        user_id or unattributed is present.
+      required: [compute_seconds, storage_hours]
+      properties:
+        user_id: { type: string }
+        unattributed: { type: boolean }
+        compute_seconds: { type: number }
+        storage_hours: { type: number }
+    OrganizationUsageResponse:
+      type: object
+      required: [usage, credit]
+      properties:
+        usage:
+          type: object
+          required: [compute_seconds, storage_hours, members]
+          properties:
+            compute_seconds: { type: number }
+            storage_hours: { type: number }
+            members:
+              type: array
+              items: { $ref: '#/components/schemas/BillingMemberUsage' }
+        credit:
+          type: object
+          description: >-
+            The provider's currently settled wallet balance, not the locally
+            cached effective verdict the Create path enforces on; the two can
+            differ because this balance does not subtract uninvoiced usage.
+          required: [balance, blocked]
+          properties:
+            balance: { type: number }
+            blocked: { type: boolean }
+    TopUpOffer:
+      type: object
+      required: [code, name, amount_cents, currency]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        amount_cents: { type: integer, format: int64 }
+        currency: { type: string }
+    TopUpPurchase:
+      type: object
+      description: >-
+        payment_url is an opaque, short-lived HTTPS checkout capability. It
+        settles no charge and grants no credit by itself; Lago marks the
+        wallet transaction settled only after its own payment flow succeeds.
+      required: [offer_code, amount_cents, currency, status, payment_url]
+      properties:
+        offer_code: { type: string }
+        amount_cents: { type: integer, format: int64 }
+        currency: { type: string }
+        status: { type: string }
+        payment_url: { type: string, format: uri }
+    Coupon:
+      type: object
+      required: [coupon_id, code, name, status, amount_cents, amount_cents_remaining, currency, percentage_rate, frequency, frequency_remaining]
+      properties:
+        coupon_id: { type: string }
+        code: { type: string }
+        name: { type: string }
+        status: { type: string }
+        amount_cents: { type: integer, format: int64 }
+        amount_cents_remaining: { type: integer, format: int64 }
+        currency: { type: string }
+        percentage_rate: { type: number }
+        frequency: { type: string }
+        frequency_remaining: { type: integer }
+        expires_at: { type: string, format: date-time }
+    InvoiceLine:
+      type: object
+      required: [code, kind, units, cents]
+      properties:
+        code: { type: string }
+        kind: { type: string }
+        units: { type: number }
+        cents: { type: integer, format: int64 }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+    Invoice:
+      type: object
+      description: >-
+        A listed invoice carries no billed period and no lines; the provider
+        omits both from its collection response, so filling them in from the
+        issuing date would attribute usage to the wrong period. Read one
+        invoice to get them. It carries no link to the provider's hosted
+        copy: those URLs are unauthenticated, so they are never included.
+      required:
+        - invoice_id
+        - number
+        - status
+        - payment_status
+        - currency
+        - subtotal_cents
+        - tax_cents
+        - total_cents
+        - prepaid_credit_cents
+        - fees_cents
+        - coupon_cents
+        - prepaid_granted_credit_cents
+        - prepaid_purchased_credit_cents
+        - lines
+      properties:
+        invoice_id: { type: string }
+        number: { type: string }
+        status:
+          type: string
+          enum: [draft, finalized, voided]
+          description: Only a finalized invoice has moved money.
+        payment_status: { type: string }
+        currency: { type: string }
+        issued_on: { type: string, format: date-time }
+        period_from: { type: string, format: date-time }
+        period_to: { type: string, format: date-time }
+        subtotal_cents: { type: integer, format: int64 }
+        tax_cents: { type: integer, format: int64 }
+        total_cents: { type: integer, format: int64 }
+        prepaid_credit_cents:
+          type: integer
+          format: int64
+          description: How much of this invoice was settled from wallets rather than owed.
+        fees_cents: { type: integer, format: int64 }
+        coupon_cents:
+          type: integer
+          format: int64
+          description: The amount Lago actually applied; never a local estimate.
+        prepaid_granted_credit_cents: { type: integer, format: int64 }
+        prepaid_purchased_credit_cents: { type: integer, format: int64 }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/InvoiceLine' }
+    InvoiceDetail:
+      allOf:
+        - $ref: '#/components/schemas/Invoice'
+        - type: object
+          required: [members]
+          properties:
+            members:
+              type: array
+              description: >-
+                Per-member breakdown of the billed period. The provider
+                cannot supply this: user ids deliberately never leave the
+                cluster.
+              items: { $ref: '#/components/schemas/BillingMemberUsage' }
+    BillingPeriod:
+      type: object
+      required: [from, to]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+    BillingOverview:
+      type: object
+      description: >-
+        credit and limits are independent optional groups, each present
+        only when its own read succeeded (a cached value counts as
+        succeeded); one failing must never suppress the other. top_up is
+        entirely absent when the offer catalog itself could not be read,
+        rather than guessing between allowed and no_offers.
+      required: [currency, provisioned, period, period_usage, sandboxes, degraded]
+      properties:
+        currency: { type: string }
+        provisioned: { type: boolean }
+        period: { $ref: '#/components/schemas/BillingPeriod' }
+        period_usage:
+          type: object
+          required: [compute_seconds, storage_hours]
+          properties:
+            compute_seconds: { type: number }
+            storage_hours: { type: number }
+            estimated_cents:
+              type: integer
+              format: int64
+              description: Absent when current unit prices could not be read.
+        credit:
+          type: object
+          description: >-
+            balance is the provider's currently settled wallet balance.
+            effective_balance is the locally cached verdict the Create path
+            actually enforces on (settled balance minus uninvoiced usage),
+            which can differ from balance. Each of the two pairs
+            (balance/balance_checked_at, effective_balance/blocked/
+            effective_checked_at) is present only when that specific read
+            succeeded.
+          properties:
+            balance: { type: number }
+            balance_checked_at: { type: string, format: date-time }
+            effective_balance: { type: number }
+            blocked: { type: boolean }
+            effective_checked_at: { type: string, format: date-time }
+        limits:
+          type: object
+          description: >-
+            The bonya_compute entitlement. computed_at is the entitlement's
+            own timestamp, which may predate this response when a fresh
+            read failed and a cached value was served instead.
+          properties:
+            max_sandboxes: { type: integer }
+            storage_billing_enabled: { type: boolean }
+            signup_promotion_cents: { type: integer, format: int64 }
+            monthly_promotion_cents: { type: integer, format: int64 }
+            computed_at: { type: string, format: date-time }
+        sandboxes:
+          type: object
+          required: [in_use]
+          properties:
+            in_use:
+              type: integer
+              description: >-
+                Every sandbox except FAILED and DELETED. An observed count,
+                not an admission guarantee: the quota gate also counts
+                in-flight reservations and may transiently run ahead of it.
+        top_up:
+          type: object
+          description: Absent when the offer catalog could not be read.
+          required: [allowed]
+          properties:
+            allowed: { type: boolean }
+            reason:
+              type: string
+              enum: [not_provisioned, purchase_pending, no_offers]
+        degraded:
+          type: array
+          items: { $ref: '#/components/schemas/Degradation' }
+    Degradation:
+      type: string
+      enum: [balance, prices, limits, offers]
+      description: >-
+        One provider-dependent enrichment that was attempted and did not
+        produce a usable value. Never emitted for a value that is
+        legitimately absent.
+    BillingServiceUsage:
+      type: object
+      required: [metric_code, unit, units]
+      properties:
+        metric_code: { type: string, enum: [nest_compute_seconds, nest_storage_hours] }
+        unit: { type: string }
+        units: { type: number }
+        estimated_cents:
+          type: integer
+          format: int64
+          description: Present only together with share, when prices were read successfully.
+        share:
+          type: number
+          description: >-
+            Has no meaning without a price: it compares metrics measured in
+            different units, so money is the only common unit and there is
+            no unpriced fallback.
+        heaviest:
+          type: object
+          description: Absent when the metric has no recorded usage at all.
+          required: [units]
+          properties:
+            user_id: { type: string }
+            unattributed: { type: boolean }
+            units: { type: number }
+    UsageBreakdown:
+      type: object
+      required: [currency, period, services, members, degraded]
+      properties:
+        currency: { type: string }
+        period: { $ref: '#/components/schemas/BillingPeriod' }
+        services:
+          type: array
+          items: { $ref: '#/components/schemas/BillingServiceUsage' }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/BillingMemberUsage' }
+        degraded:
+          type: array
+          items: { $ref: '#/components/schemas/Degradation' }
+    UsageSeriesPoint:
+      type: object
+      required: [from, to, compute_seconds, storage_hours]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        compute_seconds: { type: number }
+        storage_hours: { type: number }
+        estimated_cents:
+          type: integer
+          format: int64
+          description: >-
+            Present on every point or absent from every point: one price
+            read prices the whole series.
+    UsageSeries:
+      type: object
+      required: [currency, period, bucket, points, degraded]
+      properties:
+        currency: { type: string }
+        period: { $ref: '#/components/schemas/BillingPeriod' }
+        bucket: { type: string, enum: [hour, day] }
+        points:
+          type: array
+          description: Only non-empty buckets are included.
+          items: { $ref: '#/components/schemas/UsageSeriesPoint' }
+        degraded:
+          type: array
+          items: { $ref: '#/components/schemas/Degradation' }
+    Payment:
+      type: object
+      description: >-
+        kind is topup or grant. The topup fields are set when kind is
+        topup; the grant fields (period) are set when kind is grant.
+        Never carries a wallet id, provider transaction id, or payment
+        URL. idempotency_key is deliberately returned so a billing manager
+        can resume a pending checkout by reposting the same offer and key.
+      required: [kind, at]
+      properties:
+        kind: { type: string, enum: [topup, grant] }
+        at: { type: string, format: date-time }
+        idempotency_key: { type: string }
+        offer_code: { type: string }
+        offer_name: { type: string }
+        amount_cents: { type: integer, format: int64 }
+        currency: { type: string }
+        credits: { type: number }
+        status: { type: string, enum: [creating, pending, settled, failed] }
+        invoice_id: { type: string }
+        period: { type: string }
+    PaymentListResponse:
+      type: object
+      required: [payments, has_more]
+      properties:
+        payments:
+          type: array
+          items: { $ref: '#/components/schemas/Payment' }
+        has_more:
+          type: boolean
+          description: The meaningful "no further pages" answer when false; never inferred from a short page.
     APIKey:
       type: object
       required: [key_id, display_prefix, display_last4, created_at]
@@ -1189,3 +2059,270 @@ components:
       properties:
         from: { type: string }
         to: { type: string }
+    JobRequest:
+      type: object
+      description: >-
+        Exactly one of existing_sandbox_id and new_sandbox is required.
+        Exactly one of cmd and script is required.
+      properties:
+        name:
+          type: string
+          description: Optional human-readable name for this job.
+        existing_sandbox_id: { type: string }
+        new_sandbox: { $ref: '#/components/schemas/JobNewSandboxSpec' }
+        cmd:
+          type: array
+          items: { type: string }
+        script: { $ref: '#/components/schemas/JobScriptSpec' }
+        pre_run_script:
+          allOf:
+            - $ref: '#/components/schemas/JobScriptSpec'
+          description: >-
+            Optional script executed after the sandbox is ready and before the
+            job command or script. A non-zero exit stops the job.
+        env:
+          type: object
+          additionalProperties: { type: string }
+        path: { type: string }
+        stdin_b64: { type: string, contentEncoding: base64 }
+        command_timeout_s: { type: integer, minimum: 1 }
+        run_deadline_s: { type: integer, minimum: 1 }
+        max_output_bytes: { type: integer, minimum: 1 }
+        disposition:
+          type: string
+          enum: [delete, keep]
+          default: delete
+          description: >-
+            What happens to a sandbox this run created when the run ends,
+            however it ends. Not meaningful for an existing sandbox.
+        resume_if_suspended:
+          type: boolean
+          default: false
+          description: >-
+            Applies to an existing sandbox only. False makes a suspended
+            target a failure rather than an implicit resume, which is a
+            billable action the caller may not have intended.
+        wait:
+          type: boolean
+          default: false
+          description: >-
+            false starts durably and returns immediately (202); true blocks
+            for the result, bounded by the caller's own request timeout (200).
+    JobNewSandboxSpec:
+      type: object
+      properties:
+        template_id:
+          type: string
+          description: >-
+            Omit to use the deployment's configured default template, if it
+            has one; otherwise required.
+        version: { type: string }
+        name: { type: string }
+    JobScriptSpec:
+      type: object
+      required: [body_b64]
+      description: >-
+        A script the user wrote or uploaded. The body travels inline and is
+        capped; a script larger than the cap is a program, and a program
+        belongs in the template or fetched by the script itself.
+      properties:
+        body_b64: { type: string, contentEncoding: base64 }
+        interpreter: { type: string, default: sh }
+        args:
+          type: array
+          items: { type: string }
+        filename: { type: string }
+    JobStartResponse:
+      type: object
+      required: [run_id, already_running]
+      properties:
+        run_id: { type: string }
+        already_running:
+          type: boolean
+          description: >-
+            True when this call joined an existing run rather than starting
+            one, which is what a retried request with the same
+            Idempotency-Key does.
+    JobResult:
+      type: object
+      required: [exit_code, signaled, timed_out, stdout_b64, stderr_b64, stdout_truncated, stderr_truncated]
+      description: >-
+        The command's outcome. A non-zero exit_code is a completed run, not a
+        failed one; a failure to create or resume the sandbox is a failed run
+        instead, reported via the run's own failure field.
+      properties:
+        exit_code: { type: integer }
+        signaled: { type: boolean }
+        signal: { type: integer }
+        timed_out: { type: boolean }
+        stdout_b64: { type: string, contentEncoding: base64 }
+        stderr_b64: { type: string, contentEncoding: base64 }
+        stdout_truncated: { type: boolean }
+        stderr_truncated: { type: boolean }
+    JobRun:
+      type: object
+      required: [run_id, status, created_sandbox, cleanup_failed, available_actions]
+      properties:
+        run_id: { type: string }
+        name:
+          type: string
+          description: Optional human-readable name for this job.
+        status:
+          type: string
+          enum: [running, completed, failed, canceled, timed_out, terminated]
+        sandbox_id: { type: string }
+        created_sandbox:
+          type: boolean
+          description: >-
+            Distinguishes whether this run created sandbox_id or was given
+            it, which decides whether the caller still owns it after the run.
+        schedule_id: { type: string }
+        started_at_unix_nanos: { type: integer }
+        finished_at_unix_nanos: { type: integer }
+        result: { $ref: '#/components/schemas/JobResult' }
+        failure: { type: string }
+        cleanup_failed:
+          type: boolean
+          description: >-
+            The run finished but could not delete the sandbox it created.
+            That sandbox is still billed and still visible in ListSandboxes.
+        available_actions:
+          type: array
+          description: >-
+            What the caller may do to this run right now, computed
+            server-side. A client must not re-derive these from status alone.
+          items:
+            type: string
+            enum: [cancel, rerun, retry, delete, delete_sandbox]
+    JobRunTimelineEntry:
+      type: object
+      required: [name]
+      description: >-
+        One activity attempt, decoded from the workflow engine's own event
+        history. Nothing here is stored by this module; it stops existing
+        once the namespace's retention window passes.
+      properties:
+        name: { type: string }
+        attempt: { type: integer }
+        started_at_unix_nanos: { type: integer }
+        finished_at_unix_nanos: { type: integer }
+        failure: { type: string }
+    JobRunDetail:
+      allOf:
+        - $ref: '#/components/schemas/JobRun'
+        - type: object
+          properties:
+            job: { $ref: '#/components/schemas/JobRequest' }
+            timeline:
+              type: array
+              items: { $ref: '#/components/schemas/JobRunTimelineEntry' }
+    JobRunPage:
+      type: object
+      required: [runs]
+      properties:
+        runs:
+          type: array
+          items: { $ref: '#/components/schemas/JobRun' }
+        next_page_token: { type: string }
+    JobScheduleRequest:
+      type: object
+      required: [job]
+      description: >-
+        Exactly one of cron_expressions, interval_s, and run_at_unix_nanos is
+        required.
+      properties:
+        cron_expressions:
+          type: array
+          items: { type: string }
+        interval_s: { type: integer, minimum: 1 }
+        run_at_unix_nanos:
+          type: integer
+          description: "One-shot: a single future calendar time. Refused if in the past."
+        time_zone: { type: string, description: "IANA zone, e.g. US/Pacific. Empty is UTC." }
+        jitter_s: { type: integer, minimum: 0 }
+        overlap:
+          type: string
+          enum: [skip, buffer_one, allow_all]
+          default: skip
+          description: >-
+            What a fire does when the previous run is still going. skip (the
+            default) drops the new fire.
+        paused: { type: boolean, default: false }
+        job: { $ref: '#/components/schemas/JobRequest' }
+    JobSchedule:
+      type: object
+      required: [schedule_id, paused, one_shot, available_actions]
+      properties:
+        schedule_id: { type: string }
+        schedule:
+          type: object
+          properties:
+            cron_expressions:
+              type: array
+              items: { type: string }
+            interval_s: { type: integer }
+            run_at_unix_nanos: { type: integer }
+            time_zone: { type: string }
+            jitter_s: { type: integer }
+            overlap: { type: string, enum: [skip, buffer_one, allow_all] }
+        job: { $ref: '#/components/schemas/JobRequest' }
+        paused: { type: boolean }
+        note: { type: string }
+        next_run_at_unix_nanos: { type: integer }
+        one_shot:
+          type: boolean
+          description: True when this schedule fires exactly once (run_at_unix_nanos).
+        remaining_actions:
+          type: integer
+          description: Present for one-shot schedules; 0 once spent.
+        available_actions:
+          type: array
+          items:
+            type: string
+            enum: [pause, resume, trigger, update, delete]
+        created_at_unix_nanos:
+          type: integer
+          description: >-
+            When this schedule was created. This deployment keeps no
+            schedule state of its own; this is exactly what the workflow
+            engine reports.
+        updated_at_unix_nanos:
+          type: integer
+          description: When this schedule was last paused, resumed, or edited.
+        num_actions:
+          type: integer
+          description: How many times this schedule has fired, including manual triggers.
+        num_actions_skipped_overlap:
+          type: integer
+          description: >-
+            Fires dropped because the previous run was still going. Relevant
+            when overlap is skip, the default.
+        num_actions_missed_catchup_window:
+          type: integer
+          description: >-
+            Fires dropped because the server was down or behind past its
+            catchup window. A schedule that looks paused but is not may show
+            up here instead.
+        recent_run_ids:
+          type: array
+          items: { type: string }
+          description: >-
+            The last 10 fires' run ids, oldest first, including manual
+            triggers. Each is a valid GET /v1/job/{run_id} id, so a caller
+            can follow one without a separate GET /v1/job?schedule_id=...
+            call.
+        running_run_ids:
+          type: array
+          items: { type: string }
+          description: >-
+            Which of this schedule's own fires are in flight right now.
+            Non-empty only under an overlap policy that allows more than one
+            run at a time; skip, the default, keeps this to at most one.
+    JobSchedulePage:
+      type: object
+      required: [schedules]
+      properties:
+        schedules:
+          type: array
+          items: { $ref: '#/components/schemas/JobSchedule' }
+        next_page_token: { type: string }
