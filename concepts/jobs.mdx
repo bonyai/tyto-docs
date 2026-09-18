@@ -1,0 +1,129 @@
+---
+title: Jobs
+description: Managed, tracked runs of a command or script
+---
+
+A **job** is a managed run of a command or script — on a new sandbox (created for the run and, by default, deleted once it ends) or an existing one. Jobs exist for the common case of "run this and tell me what happened," without you having to hold a sandbox handle open, poll exec yourself, or clean up afterward.
+
+<Note>
+A job is not a replacement for [exec](/concepts/exec) or [managed sessions](/concepts/sessions) — it's a layer above them that also owns sandbox lifecycle for the run. Use exec or a session when you already have a sandbox and want to run something on it directly; use a job when you want the run tracked as its own resource, optionally on a sandbox created and torn down just for it.
+</Note>
+
+## Creating a job
+
+```
+POST /v1/job
+```
+
+The request body (`JobRequest`) requires **exactly one** of `existing_sandbox_id`/`new_sandbox`, and **exactly one** of `cmd`/`script`:
+
+<ParamField body="existing_sandbox_id" type="string">
+  Run on a sandbox that already exists. Mutually exclusive with `new_sandbox`.
+</ParamField>
+<ParamField body="new_sandbox" type="object">
+  Create a sandbox for this run. `{ template_id?, version?, name? }` — `template_id` may be omitted to use the deployment's configured default template, the same as [sandbox create](/concepts/sandboxes#creating-a-sandbox).
+</ParamField>
+<ParamField body="cmd" type="string[]">
+  Argv to run. Mutually exclusive with `script`.
+</ParamField>
+<ParamField body="script" type="object">
+  `{ body_b64, interpreter?, args?, filename? }` — a script the caller wrote or uploaded, run instead of `cmd`. The body travels inline and is size-capped.
+</ParamField>
+<ParamField body="pre_run_script" type="object">
+  Optional script (same shape as `script`) executed after the sandbox is ready and before the job's own command or script. A non-zero exit stops the job before it runs.
+</ParamField>
+<ParamField body="env" type="object">
+  Extra environment variables for the job.
+</ParamField>
+<ParamField body="path" type="string">
+  Working directory for the job.
+</ParamField>
+<ParamField body="disposition" type="string" default="delete">
+  `delete` or `keep` — what happens to a sandbox **this run created** once the run ends, however it ends (including cancellation). Not meaningful for `existing_sandbox_id`.
+</ParamField>
+<ParamField body="resume_if_suspended" type="boolean" default="false">
+  Applies to `existing_sandbox_id` only. `false` makes a suspended target a failure rather than an implicit resume, since resuming is a billable action the caller may not have intended.
+</ParamField>
+<ParamField body="wait" type="boolean" default="false">
+  `false` starts the run durably and returns immediately with a `run_id` (`202`). `true` blocks for the result, bounded by the caller's own request timeout (`200`).
+</ParamField>
+
+Create also accepts an `Idempotency-Key` header — see [Idempotency](/concepts/idempotency).
+
+<Warning>
+There is no endpoint to edit a run in place. To "edit and rerun" one: fetch its stored spec with `GET /v1/job/{run_id}`, change what you need, and `POST` it to `/v1/job` as a new run.
+</Warning>
+
+## Run lifecycle
+
+A run's `status` moves through the states the job's own command or script produces, ending in a terminal state that carries a `result` (`exit_code`, captured output, and similar exec-style fields). Whether you passed `wait: true` or not, the same `result` shape appears once the run completes — `wait` only controls whether the create call itself blocks for it.
+
+## Listing and inspecting runs
+
+```
+GET /v1/job
+```
+
+Paginated, newest first; optionally filtered to `sandbox_id` or `schedule_id` (runs fired by a [job schedule](#job-schedules)).
+
+```
+GET /v1/job/{run_id}
+```
+
+Returns the full run detail: the run summary plus the **stored job spec** that started it and an activity **timeline**. This is the endpoint to call before an edit-and-rerun, described above.
+
+## Canceling a run
+
+```
+POST /v1/job/{run_id}/cancel
+```
+
+Requests cancellation rather than forcibly terminating — the run's own cleanup (for example, deleting a sandbox it created, per `disposition`) still executes before the run reaches its terminal state.
+
+## Job schedules
+
+A **job schedule** wraps a job spec with timing, so it runs on its own without a caller invoking create each time.
+
+```
+POST /v1/job-schedule
+```
+
+<ParamField body="cron_expressions" type="string[]">
+  Cron expressions to fire on. Exactly one of `cron_expressions`/`interval_s`/`run_at_unix_nanos` is required.
+</ParamField>
+<ParamField body="interval_s" type="integer">
+  Fire every N seconds.
+</ParamField>
+<ParamField body="run_at_unix_nanos" type="integer">
+  One-shot: a single future calendar time. Refused if it names a time in the past — a one-shot schedule is this field set, not a separate mechanism.
+</ParamField>
+<ParamField body="time_zone" type="string">
+  IANA zone (e.g. `US/Pacific`) that `cron_expressions` is evaluated against. Empty is UTC.
+</ParamField>
+<ParamField body="jitter_s" type="integer">
+  Random delay added to each fire, in seconds.
+</ParamField>
+<ParamField body="overlap" type="string" default="skip">
+  What a fire does when the previous run from the same schedule is still going: `skip` (drop the new fire), `buffer_one`, or `allow_all`.
+</ParamField>
+<ParamField body="paused" type="boolean" default="false">
+  Create the schedule already paused.
+</ParamField>
+<ParamField body="job" type="object" required>
+  The job spec to run on each fire — same shape and same-field requirements as job create, above.
+</ParamField>
+
+`PATCH /v1/job-schedule/{schedule_id}` **replaces** the whole schedule — timing and job spec together — so re-send every field you want to keep, not just the one you're changing.
+
+`GET /v1/job-schedule/{schedule_id}` returns the schedule's timing, stored job spec, pause state, next run time, and its **recent run ids**: the last 10 fires (oldest first, including manual triggers), each a valid `GET /v1/job/{run_id}` id — enough to follow a schedule straight to its recent runs without a separate list call.
+
+`POST /v1/job-schedule/{schedule_id}/pause` sets the paused state without deleting the schedule. `POST /v1/job-schedule/{schedule_id}/trigger` fires one run immediately, ignoring the schedule's own timing — useful for testing a schedule without waiting for it. `DELETE /v1/job-schedule/{schedule_id}` permanently removes it, without canceling any run currently in flight.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Sandboxes" icon="box" href="/concepts/sandboxes" />
+  <Card title="Templates" icon="layer-group" href="/concepts/templates" />
+  <Card title="Exec" icon="terminal" href="/concepts/exec" />
+  <Card title="Idempotency" icon="rotate" href="/concepts/idempotency" />
+</CardGroup>

@@ -29,7 +29,7 @@ curl -s -X POST https://api.tyto.run/v1/sandbox \
   -H "Authorization: Bearer $BONYA_API_KEY" \
   -H "Idempotency-Key: $(uuidgen)" \
   -H "Content-Type: application/json" \
-  -d '{"template_id": "ubuntu-24-dev"}'
+  -d '{"template_id": "bonya-dev"}'
 ```
 
 If that request needs to be retried — a network timeout, a client crash before the response was read — reuse the exact same `Idempotency-Key` value on the retry rather than generating a new one. A new key on retry is indistinguishable from a genuinely new create request.

@@ -10,7 +10,7 @@ https://api.tyto.run
 ```
 
 <Note>
-The API's OpenAPI document doesn't declare a `servers:` block, so an interactive API playground generated from it may not have a default host preconfigured. Use `https://api.tyto.run` explicitly, or override it via the `BONYA_ENDPOINT` environment variable described below.
+The API's OpenAPI document doesn't declare a `servers:` block, so an interactive API playground generated from it may not have a default host preconfigured. Use `https://api.tyto.run` explicitly.
 </Note>
 
 ## Two ways to authenticate
@@ -57,15 +57,17 @@ The CLI and SDKs read these environment variables:
 | Variable | Purpose |
 | --- | --- |
 | `BONYA_API_KEY` | The personal API key to authenticate with. |
-| `BONYA_ENDPOINT` | Base URL for the API. Defaults to `https://api.tyto.run`. |
 | `BONYA_CA_BUNDLE` | Path to a CA bundle, for custom TLS trust roots. |
 | `BONYA_ORGANIZATION_ID` | Default value sent as `X-Bonya-Organization-ID` on every request. |
 
 ```bash
 export BONYA_API_KEY=byk_...
-export BONYA_ENDPOINT=https://api.tyto.run
 export BONYA_ORGANIZATION_ID=org-...
 ```
+
+<Note>
+The CLI also accepts `--endpoint`/`BONYA_ENDPOINT` to point at a non-default deployment — see [CLI configuration](/cli-reference/configuration). The SDKs always talk to `https://api.tyto.run` and don't document an endpoint override.
+</Note>
 
 ## Getting a key: device login
 
@@ -150,7 +152,7 @@ curl -s https://api.tyto.run/v1/sandbox \
   -H "Authorization: Bearer $BONYA_API_KEY"
 ```
 
-Both SDKs read `BONYA_API_KEY` and `BONYA_ENDPOINT` from the environment by default, or accept explicit overrides in code.
+Every SDK reads `BONYA_API_KEY` from the environment by default, or accepts an explicit override in code.
 
 ## Managing API keys
 

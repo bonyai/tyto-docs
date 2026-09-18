@@ -52,6 +52,7 @@
               "concepts/files",
               "concepts/previews",
               "concepts/snapshots",
+              "concepts/jobs",
               "concepts/organizations",
               "concepts/api-keys"
             ]

@@ -3,15 +3,15 @@ title: Overview
 description: Manage Tyto sandboxes from any MCP client
 ---
 
-`@bonya-ai/tyto-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server for the Bonya Compute REST API. It lets any MCP client — Claude Desktop, Claude Code, Cursor, and others — create and manage **sandboxes**, run commands, work with files, manage long-lived background **sessions**, and create **preview** URLs, all through tool calls instead of raw HTTP.
+`@bonya-ai/tyto-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server for the Bonya Compute REST API. It lets any MCP client — Claude Desktop, Claude Code, Cursor, and others — create and manage **sandboxes**, run commands, work with files, manage long-lived background **sessions**, create **preview** URLs, and run one-off or scheduled **jobs**, all through tool calls instead of raw HTTP.
 
 <Note>
-The server is self-contained: it talks to the Bonya Compute REST API directly and does not depend on the `@bonya/tyto` or `tyto` gRPC SDKs. Because it's a thin wrapper over the REST API, it inherits that API's contract — including what the REST surface does *not* expose. Snapshots, for example, are managed exclusively through the gRPC SDK and have no REST endpoints, so `snapshot_*` tools are intentionally absent here. See [Tools](/mcp/tools) for the full list of what is and isn't covered.
+The server is self-contained: it talks to the Bonya Compute REST API directly and does not depend on the `@bonya-ai/tyto` or `tyto` gRPC SDKs. Because it's a thin wrapper over the REST API, it inherits that API's contract — including what the REST surface does *not* expose. Snapshots, for example, are managed exclusively through the gRPC SDK and have no REST endpoints, so `snapshot_*` tools are intentionally absent here. See [Tools](/mcp/tools) for the full list of what is and isn't covered.
 </Note>
 
 ## Tool groups
 
-The server registers 14 tools across four groups:
+The server registers 31 tools across six groups:
 
 <CardGroup cols={2}>
   <Card title="Sandboxes" icon="cube">
@@ -26,14 +26,22 @@ The server registers 14 tools across four groups:
   <Card title="Previews" icon="link">
     Create, list, and delete preview URLs that proxy to a port inside a sandbox.
   </Card>
+  <Card title="Jobs" icon="list-check">
+    Run a managed one-off command or script — on a new or existing sandbox — and track it to completion.
+  </Card>
+  <Card title="Job schedules" icon="clock">
+    Wrap a job spec with cron, interval, or one-shot timing so it runs without a manual `job_create` call.
+  </Card>
 </CardGroup>
+
+A `template_list` tool rounds out the surface, listing every template `sandbox_create` and `job_create` will accept.
 
 <CardGroup cols={2}>
   <Card title="Setup" icon="gear" href="/mcp/setup">
     Install the server and connect it to your MCP client.
   </Card>
   <Card title="Tools" icon="wrench" href="/mcp/tools">
-    Full reference for all 14 tools, including parameters and return values.
+    Full reference for all 31 tools, including parameters and return values.
   </Card>
 </CardGroup>
 

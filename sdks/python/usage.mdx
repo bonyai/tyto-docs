@@ -1,22 +1,43 @@
 ---
 title: Usage
-description: Sandboxes, exec, sessions, files, previews, and snapshots from Python
+description: Sandboxes, exec, sessions, files, previews, snapshots, jobs, and templates from Python
 ---
 
-Every sandbox operation on `client.sandboxes` also has a flat form
-directly on `Client` — `client.create_sandbox(...)`, `client.get_sandbox(id)`,
-`client.get_sandbox_by_name(name)`, `client.list_sandboxes()`,
-`client.delete_sandbox(id)`, `client.resume_sandbox(id)` — for callers
-who'd rather call a verb than navigate an attribute. Both spellings are
-the same implementation.
+## What you can do
 
-Sessions, previews, and snapshots have flat forms too
-(`client.create_session(sandbox_id, name, cmd)`,
-`client.create_preview(sandbox_id, port)`, `client.create_snapshot(sandbox_id)`,
-and so on), but each does a `get_sandbox()` first and then delegates — one
-extra round trip compared to already holding a `Sandbox` handle. Prefer
-`sandbox.sessions.create(...)` (or the equivalent) when a `Sandbox` is
-already in hand; reach for the flat form when all you have is an id.
+| I want to… | Call |
+|---|---|
+| Start a sandbox | `client.create_sandbox(template=...)` |
+| Reconnect to one | `client.get_sandbox(id)` / `.get_sandbox_by_name(name)` |
+| Find my sandboxes | `client.list_sandboxes()` |
+| Run a command | `sandbox.exec(cmd)` |
+| Stream output live | `sandbox.exec_stream(cmd)` |
+| Keep a process running after I disconnect | `sandbox.create_session(name, cmd)` |
+| Move files in and out | `sandbox.read_file`/`.write_file`/`.upload_file`/`.download_file` |
+| Expose a port to the web | `sandbox.create_preview(port)` |
+| Capture disk state | `sandbox.snapshot()` |
+| Run a managed one-off or scheduled job | `client.run_job(spec)` / `client.create_job_schedule(...)` |
+| See what templates exist | `client.list_templates()` |
+
+Everything here is a **flat method** directly on `Client` or `Sandbox` —
+there is no `client.sandboxes.create(...)`-style attribute to navigate.
+`client.create_sandbox(...)`, `client.get_sandbox(id)`,
+`client.get_sandbox_by_name(name)`, `client.list_sandboxes()`,
+`client.delete_sandbox(id)`, `client.resume_sandbox(id)` are the whole
+sandbox-lifecycle surface on `Client`. Once you're holding a `Sandbox`,
+`sandbox.create_session(...)`, `sandbox.create_preview(...)`,
+`sandbox.snapshot(...)`, and the file methods below are flat methods on it
+directly.
+
+<Note>
+`Tyto` also has session/preview convenience methods that take a sandbox id
+directly instead of a `Sandbox` — `client.create_session(sandbox_id, name,
+cmd)`, `client.list_sessions(sandbox_id)`, `client.create_preview(sandbox_id,
+port)`, and similar. Each does a `get_sandbox()` first and then delegates,
+which is one extra round trip compared to already holding a `Sandbox`
+handle. Prefer calling directly on `sandbox` when you have one in hand;
+reach for a client-level call only when all you have is an id.
+</Note>
 
 ## Create sandboxes
 
@@ -24,19 +45,19 @@ already in hand; reach for the flat form when all you have is an id.
 from tyto import Tyto, Wait
 
 with Tyto() as client:
-    sandbox = client.sandboxes.create(
-        template="ubuntu-24.04",
+    sandbox = client.create_sandbox(
+        template="bonya-dev",
         version=None,
         wait=Wait.READY,
         idempotency_key="create-job-123",
     )
 ```
 
-`client.sandboxes.create(...)` returns a `Sandbox`.
+`client.create_sandbox(...)` returns a `Sandbox`.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `template` | `str` | Required, non-empty. |
+| `template` | `str \| None` | May be omitted to use the deployment's configured default template, if it has one. |
 | `version` | `str \| None` | Template version. Server default when omitted. |
 | `wait` | `Wait \| "ready" \| "none"` | Defaults to `Wait.READY`. |
 | `idempotency_key` | `str \| None` | Generated and reused for transport retries if omitted. |
@@ -57,37 +78,37 @@ Sandbox fields: `sandbox.id`, `.operation_id`, `.template`, `.version`,
 ## Get, list, and get by name
 
 ```python
-sandbox = client.sandboxes.get("sbx_123")
+sandbox = client.get_sandbox("sbx_123")
 
 from tyto import Status
 
-for summary in client.sandboxes.list(
+for summary in client.list_sandboxes(
     states=[Status.RUNNING, Status.SUSPENDED],
     limit=20,
 ):
     print(summary.id, summary.last_observed_status.value)
 
-by_name = client.sandboxes.get_by_name("web-server")
+by_name = client.get_sandbox_by_name("web-server")
 ```
 
-`get(sandbox_id)` requires a non-empty id and returns a usable `Sandbox`
-handle. It does **not** explicitly resume the sandbox — exec and
+`get_sandbox(sandbox_id)` requires a non-empty id and returns a usable
+`Sandbox` handle. It does **not** explicitly resume the sandbox — exec and
 filesystem calls are what wake a suspended one.
 
-`list(...)` returns an iterator of immutable `SandboxSummary` values and
-pages as you iterate. `limit=0` returns an empty iterator without an RPC.
-`name=` filters to sandboxes carrying an exact display name (names aren't
-unique, so this can still match more than one). Valid `states` filters are
-`Status.CREATING`, `RUNNING`, `SUSPENDING`, `SUSPENDED`, `RESUMING`, and
-`FAILED` — `Status.DELETED` is not a valid filter. A `SandboxSummary` has
-`id`, `operation_id`, `template`, `version`, `last_observed_status`,
-`failure_code`, `failure_message` — it cannot run `exec`; call `get(summary.id)`
-first.
+`list_sandboxes(...)` returns an iterator of immutable `SandboxSummary`
+values and pages as you iterate. `limit=0` returns an empty iterator
+without an RPC. `name=` filters to sandboxes carrying an exact display
+name (names aren't unique, so this can still match more than one). Valid
+`states` filters are `Status.CREATING`, `RUNNING`, `SUSPENDING`,
+`SUSPENDED`, `RESUMING`, and `FAILED` — `Status.DELETED` is not a valid
+filter. A `SandboxSummary` has `id`, `operation_id`, `template`, `version`,
+`last_observed_status`, `failure_code`, `failure_message` — it cannot run
+`exec`; call `get_sandbox(summary.id)` first.
 
-`get_by_name(name)` resolves a display name to a single sandbox. Names are
-not unique: if more than one sandbox carries the name, it raises rather
-than picking one (a later `delete()` could otherwise destroy the wrong
-sandbox). If none match, it raises `SandboxNotFoundError`.
+`get_sandbox_by_name(name)` resolves a display name to a single sandbox.
+Names are not unique: if more than one sandbox carries the name, it raises
+rather than picking one (a later `delete()` could otherwise destroy the
+wrong sandbox). If none match, it raises `SandboxNotFoundError`.
 
 ## Delete and cleanup
 
@@ -101,7 +122,7 @@ Calling it again on the same `Sandbox` object is local and idempotent — no
 second RPC. Context-manager cleanup calls `delete()`:
 
 ```python
-with client.sandboxes.create(template="ubuntu-24.04") as sandbox:
+with client.create_sandbox(template="bonya-dev") as sandbox:
     sandbox.exec("printf work", check=True)
 ```
 
@@ -121,8 +142,8 @@ private exec endpoint/capability, setting `last_observed_status` to
 `Status.RUNNING`. `resume()` on a failed sandbox raises
 `SandboxFailedError` locally, before any RPC.
 
-Explicit resume is different from automatic wake: `get()` never calls
-`resume()`, and ordinary exec/filesystem calls don't make a public
+Explicit resume is different from automatic wake: `get_sandbox()` never
+calls `resume()`, and ordinary exec/filesystem calls don't make a public
 `ResumeSandbox` RPC — they hit the sandbox's guest endpoint directly, and
 the service may wake it behind that route.
 
@@ -177,6 +198,10 @@ before it's half-closed — buffered `input` requires `tty=False`.
 `check=True` calls `result.check()` before returning; on a non-ok result
 it raises `ExecFailedError`, with the original result at `error.result`.
 
+`exec()` buffers stdout and stderr in client memory. Use `exec_stream()`
+for large output, long-running commands, interactive stdin, or
+cancellation.
+
 ### Streaming exec
 
 ```python
@@ -228,32 +253,33 @@ Buffered `input=` isn't allowed with `tty=True`; use `exec_stream()` and
 
 ## Managed console sessions
 
-Every `Sandbox` has `sandbox.sessions`, a `SandboxSessions` for named,
-persistent command sessions that **outlive the client connection**. This
-is the key distinction from `exec_stream()`: an exec process dies when its
-stream closes, but a managed session keeps running detached, and you can
-reattach later — even after the sandbox warm-suspends and resumes — and
-replay what it produced while nobody was watching. Use `exec`/`exec_stream`
-for one-shot commands; use `sessions` for long-lived terminals like dev
-servers you want to detach from and come back to.
+Managed sessions are named, persistent command sessions that **outlive
+the client connection**, created and managed with flat methods directly
+on `Sandbox`. This is the key distinction from `exec_stream()`: an exec
+process dies when its stream closes, but a managed session keeps running
+detached, and you can reattach later — even after the sandbox
+warm-suspends and resumes — and replay what it produced while nobody was
+watching. Use `exec`/`exec_stream` for one-shot commands; use managed
+sessions for long-lived terminals like dev servers you want to detach
+from and come back to.
 
 ```python
-info = sandbox.sessions.create("server", ["bash"], cols=120, rows=40)
+info = sandbox.create_session("server", ["bash"], cols=120, rows=40)
 
-session = sandbox.sessions.attach("server")
+session = sandbox.attach_session("server")
 session.write(b"npm run dev\n")
 session.resize(cols=140, rows=45)
 for event in session:
     ...
 session.detach()
 
-for info in sandbox.sessions.list():
+for info in sandbox.list_sessions():
     print(info.name, info.status)
 
-sandbox.sessions.kill("server")
+sandbox.kill_session("server")
 ```
 
-**Create** — `sessions.create(name, command, *, env=None, cwd=None,
+**Create** — `sandbox.create_session(name, command, *, env=None, cwd=None,
 cols=0, rows=0, replace=False)`. `name` must match
 `^[a-z][a-z0-9-]{0,31}$`. `command` is a non-empty sequence of non-empty
 strings (no shell-string convenience like `exec()`). Creating over an
@@ -261,11 +287,11 @@ existing record raises `SessionExistsError` unless `replace=True` — and
 even then, only a terminal record (exited/killed/failed) is replaced; a
 running or attached session is never replaced. Returns `SessionInfo`.
 
-**List** — `sessions.list()` returns a `SessionList`: an immutable
+**List** — `sandbox.list_sessions()` returns a `SessionList`: an immutable
 sequence of `SessionInfo` that also carries `sandbox_suspended: bool`.
 Listing works on a suspended sandbox without waking it.
 
-**Attach** — `sessions.attach(name, *, cols=0, rows=0, max_replay_bytes=0)`
+**Attach** — `sandbox.attach_session(name, *, cols=0, rows=0, max_replay_bytes=0)`
 returns a `SessionStream`. `session.info`, `.replayed_bytes`,
 `.history_dropped` describe the bounded replay from while you were
 detached (the replay ring is 1 MiB). Attaching preempts any other attached
@@ -279,68 +305,76 @@ reading too slowly; doesn't end the attach).
 
 `session.write(data)`, `session.resize(cols=..., rows=...)` (1–512 per
 dimension), `session.detach()` (ends gracefully, process keeps running),
-`session.close()` (calls `detach()` if still open — `with sandbox.sessions.attach(...)`
+`session.close()` (calls `detach()` if still open — `with sandbox.attach_session(...)`
 detaches on block exit).
 
-**Kill** — `sessions.kill(name, signal="TERM", grace_ms=5000)` signals the
-process group, escalating to `SIGKILL` after `grace_ms` if it hasn't
-exited. Returns `SessionInfo`, but exit info isn't guaranteed on that
-response — `kill()` doesn't wait for the guest to reap the process, so a
-`list()` shortly after is the reliable way to see the final exit code.
-Killing an unknown name raises `SessionNotFoundError`.
+**Kill** — `sandbox.kill_session(name, signal="TERM", grace_ms=5000)`
+signals the process group, escalating to `SIGKILL` after `grace_ms` if it
+hasn't exited. Returns `SessionInfo`, but exit info isn't guaranteed on
+that response — `kill()` doesn't wait for the guest to reap the process,
+so a `list_sessions()` shortly after is the reliable way to see the final
+exit code. Killing an unknown name raises `SessionNotFoundError`.
 
 `SessionInfo`: `name`, `command` (`tuple[str, ...]`), `working_dir`,
 `status`, `attached`, `started_at`, `last_activity_at`, `ended_at`, `exit`.
 `SessionStatus` values: `UNSPECIFIED`, `STARTING`, `IDLE`, `ATTACHED`,
 `EXITED`, `KILLED`, `FAILED`.
 
-A session's process never blocks idle suspend by itself — only an
-*attached* stream does. A quiet, detached session lets the sandbox
-warm-suspend and survives the resume with process and replay buffer
-intact.
+A session's process never blocks idle suspend by itself. Only an
+*attached* stream does, for as long as it stays open; a quiet, detached
+session lets the sandbox warm-suspend, and survives the resume with its
+process and replay buffer intact — the same session, not a new one.
+Output from a detached session still counts as activity and defers idle
+suspend while it keeps producing it.
+
+Session calls transparently reissue an expired capability and retry once,
+the same way `exec_stream()` and the file methods below do. Call
+`sandbox.reissue_capability()` directly only if you manage tokens
+yourself.
 
 ## Files
 
-Every `Sandbox` has `sandbox.files`, a `SandboxFiles`:
+File operations are flat methods directly on `Sandbox`:
 
 ```python
-sandbox.files.write("/workspace/message.txt", "hello\n")
-payload = sandbox.files.read("/workspace/message.txt")
+sandbox.write_file("/workspace/message.txt", "hello\n")
+payload = sandbox.read_file("/workspace/message.txt")
 
-sandbox.files.upload("local-input.bin", "/workspace/input.bin")
-sandbox.files.download("/workspace/input.bin", "local-output.bin")
+sandbox.upload_file("local-input.bin", "/workspace/input.bin")
+sandbox.download_file("/workspace/input.bin", "local-output.bin")
 
-entries = sandbox.files.list("/workspace")
-info = sandbox.files.stat("/workspace/message.txt")
+entries = sandbox.list_files("/workspace")
+info = sandbox.stat_file("/workspace/message.txt")
 
-sandbox.files.mkdir("/workspace/output")
-sandbox.files.move("/workspace/message.txt", "/workspace/output/message.txt")
-sandbox.files.remove("/workspace/output", recursive=True)
+sandbox.mkdir_file("/workspace/output")
+sandbox.move_file("/workspace/message.txt", "/workspace/output/message.txt")
+sandbox.remove_file("/workspace/output", recursive=True)
 ```
 
 | Method | Signature |
 |---|---|
-| `read` | `(path: str) -> bytes` |
-| `write` | `(path: str, data: bytes \| str) -> None` |
-| `upload` | `(local_path: str \| os.PathLike[str], remote_path: str) -> None` |
-| `download` | `(remote_path: str, local_path: str \| os.PathLike[str]) -> None` |
-| `list` | `(path: str) -> list[FileInfo]` |
-| `stat` | `(path: str) -> FileInfo` |
-| `mkdir` | `(path: str) -> None` |
-| `remove` | `(path: str, recursive: bool = False) -> None` |
-| `move` | `(source: str, destination: str) -> None` |
+| `read_file` | `(path: str) -> bytes` |
+| `write_file` | `(path: str, data: bytes \| str) -> None` |
+| `upload_file` | `(local_path: str \| os.PathLike[str], remote_path: str) -> None` |
+| `download_file` | `(remote_path: str, local_path: str \| os.PathLike[str]) -> None` |
+| `list_files` | `(path: str) -> list[FileInfo]` |
+| `stat_file` | `(path: str) -> FileInfo` |
+| `mkdir_file` | `(path: str) -> None` |
+| `remove_file` | `(path: str, recursive: bool = False) -> None` |
+| `move_file` | `(source: str, destination: str) -> None` |
 
-`read()` buffers the whole file and raises `FilesystemLimitError` before
-exceeding `filesystem_read_limit`. `write()` streams in 64 KiB chunks
-through a guest-side temp file and publishes atomically; a symlink at the
-final path is not followed. `upload()`/`download()` stream in 64 KiB
-chunks; `download()` uses a temp file, fsync, and atomic `os.replace`.
-`list()` returns immediate children sorted by name, or raises — no
-partial results. `stat()` returns lstat-style metadata (a final symlink is
-reported as a symlink, not followed). `move()` is same-filesystem, atomic,
-no-overwrite — cross-filesystem raises `CrossFilesystemMoveError`,
-existing destination raises `RemoteFileExistsError`. `remove(recursive=True)`
-recurses without following symlinks and is not atomic.
+`read_file()` buffers the whole file and raises `FilesystemLimitError`
+before exceeding `filesystem_read_limit`. `write_file()` streams in 64 KiB
+chunks through a guest-side temp file and publishes atomically; a symlink
+at the final path is not followed. `upload_file()`/`download_file()`
+stream in 64 KiB chunks; `download_file()` uses a temp file, fsync, and
+atomic `os.replace`. `list_files()` returns immediate children sorted by
+name, or raises — no partial results. `stat_file()` returns lstat-style
+metadata (a final symlink is reported as a symlink, not followed).
+`move_file()` is same-filesystem, atomic, no-overwrite — cross-filesystem
+raises `CrossFilesystemMoveError`, existing destination raises
+`RemoteFileExistsError`. `remove_file(recursive=True)` recurses without
+following symlinks and is not atomic.
 
 `FileInfo` is immutable: `path`, `name`, `kind` (`FileKind.FILE` /
 `DIRECTORY` / `SYMLINK` / `OTHER`), `size`, `mode`, `modified_at`.
@@ -349,38 +383,57 @@ recurses without following symlinks and is not atomic.
 
 A preview publishes one guest port at an HTTPS URL a browser can open. The
 server must bind a port in 1024–65535; privileged ports are never
-previewable.
+previewable, so a guest's ssh can't be handed out by accident.
 
 ```python
-preview = sandbox.previews.create(3000, name="web")
+preview = sandbox.create_preview(3000, name="web")
 print(preview.url)          # https://pv-<26 chars>.preview.tyto.run
 
-sandbox.previews.list()
-sandbox.previews.delete(preview.id)
+sandbox.list_previews()
+sandbox.delete_preview(preview.id)
 ```
 
 A token-mode preview needs the sandbox's capability, and a URL isn't a
-safe place to leave one. `sandbox.previews.browser_url(preview)` produces
+safe place to leave one. `sandbox.preview_browser_url(preview)` produces
 a single-use entry point: the gateway validates the token, trades it for a
 host-scoped `HttpOnly` cookie, and redirects without the token in the URL.
 It raises on a public preview, which has no token to exchange.
 
 ```python
-public = sandbox.previews.create(8080, auth=PreviewAuth.PUBLIC)
+public = sandbox.create_preview(8080, auth=PreviewAuth.PUBLIC)
 ```
 
 `PreviewAuth.PUBLIC` means anyone with the URL reaches the service, no
 credential — the only protection is the 26 random characters in the
-hostname. `TOKEN` is the default; an omitted `auth` never yields a public
-URL.
+hostname, so treat it as published to the internet. `TOKEN` is the
+default; an omitted `auth` never yields a public URL.
 
-`create()` returns a fresh capability and the SDK stores it on the sandbox
-automatically (the preview scope is newer than a sandbox's original
-token). If you're holding a capability elsewhere, refresh it explicitly
-with `sandbox.reissue_capability()`.
+`create_preview()` returns a fresh capability and the SDK stores it on the
+sandbox automatically (the preview scope is newer than a sandbox's
+original token). If you're holding a capability elsewhere — passed to
+another process, or kept across a restart — refresh it explicitly with
+`sandbox.reissue_capability()`.
 
 Traffic to a preview URL wakes a suspended sandbox; the first request
 after suspend pays resume latency and may return `503` with `Retry-After`.
+
+### Preview limitations
+
+- **Bind to the interface, not localhost only.** A server listening solely
+  on `127.0.0.1` inside the guest is reachable, but one bound to a
+  specific non-loopback address may not be. `0.0.0.0` is the reliable
+  choice.
+- **Server-Sent Events reconnect.** An SSE stream is cut at the 120-second
+  request cap since it isn't an HTTP upgrade. `EventSource` reconnects
+  automatically; a long-lived stream that must not break should use a
+  WebSocket.
+- **WebSocket auth is cookie or bearer only.** WebSocket clients don't
+  follow redirects, so the token-query-parameter exchange doesn't work for
+  them — open a normal page first to obtain the cookie, or send the
+  capability as a bearer header.
+- **A suspend cuts open connections.** Preview connections deliberately
+  don't defer idle-suspend, so an open WebSocket doesn't keep a sandbox
+  alive. The next request wakes it.
 
 ## Snapshots
 
@@ -410,6 +463,138 @@ observed-deleted sandbox raises `SandboxDeletedError`, a failed one raises
 snapshot has its own identifier — you can delete it after deleting the
 sandbox that produced it.
 
+## Jobs
+
+A job is a managed run of a command or script — on a new sandbox (created
+and, by default, deleted for you) or an existing one. Jobs are how you run
+work without holding a `Sandbox` open yourself for the duration.
+
+```python
+from tyto import JobSandboxSpec, JobSpec
+
+run = client.run_job(JobSpec(
+    new_sandbox=JobSandboxSpec(template="bonya-dev"),
+    cmd=("./run-tests.sh",),
+))
+print(run.status, run.result.exit_code)
+```
+
+`run_job` blocks until the run finishes, bounded by the client's own
+timeout — use it for short jobs. `start_job` returns immediately with a
+run id instead:
+
+```python
+run_id, already_running = client.start_job(JobSpec(
+    existing_sandbox_id="sbx-123",
+    cmd=("./long-migration.sh",),
+))
+# ... later ...
+detail = client.get_job_run(run_id)
+print(detail.status, detail.spec, detail.timeline)
+```
+
+`JobSpec` requires exactly one of `existing_sandbox_id`/`new_sandbox`, and
+exactly one of `cmd`/`script`. `disposition` (`Disposition.DELETE`, the
+default, or `Disposition.KEEP`) controls what happens to a sandbox the job
+itself created once the run ends; it's not meaningful for
+`existing_sandbox_id`.
+
+`get_job_run` returns `JobRunDetail`, which adds the stored `spec` and an
+activity `timeline` to the run summary `list_job_runs` returns. There is
+no endpoint to edit a run in place: to "edit and rerun" one, fetch it with
+`get_job_run`, change what you need on its `spec`, and pass that to
+`run_job` or `start_job` as a new run.
+
+```python
+runs = client.list_job_runs(sandbox_id="sbx-123")  # an iterator, paged internally
+client.cancel_job_run(run_id)  # requests cancellation; cleanup still runs
+```
+
+`cancel_job_run` cancels rather than terminates, so the run's own cleanup
+(e.g. deleting a sandbox it created) still executes.
+
+## Job schedules
+
+A schedule wraps a `JobSpec` with timing — cron, interval, or a one-shot
+future time — so it runs without you calling `run_job` yourself.
+
+```python
+from tyto import ScheduleSpec
+
+schedule = client.create_job_schedule(
+    ScheduleSpec(interval_seconds=3600),
+    JobSpec(new_sandbox=JobSandboxSpec(template="bonya-dev"), cmd=("./nightly-report.sh",)),
+)
+print(schedule.schedule_id, schedule.next_run_at_unix_nanos)
+```
+
+`ScheduleSpec` requires exactly one of `cron_expressions`,
+`interval_seconds`, and `run_at_unix_nanos` (a one-shot: a single future
+calendar time, refused if in the past). `overlap` (default
+`ScheduleOverlap.SKIP`) controls what a fire does when the previous run
+from the same schedule is still going.
+
+```python
+schedules = client.list_job_schedules()  # an iterator, paged internally
+schedule = client.get_job_schedule(schedule_id)
+
+# update_job_schedule replaces the whole schedule -- pass every field you
+# want to keep, not just the one you're changing.
+schedule = client.update_job_schedule(schedule_id, ScheduleSpec(interval_seconds=7200), job_spec)
+
+schedule = client.set_job_schedule_paused(schedule_id, True, note="pausing for maintenance")
+client.trigger_job_schedule(schedule_id)  # fires one run now, ignoring timing
+client.delete_job_schedule(schedule_id)
+```
+
+`JobSchedule.recent_run_ids` holds the last 10 fires' run ids (oldest
+first, including manual triggers), each a valid `get_job_run` id — so you
+can follow a schedule straight to its recent runs without a separate
+`list_job_runs` call.
+
+## Templates
+
+```python
+templates = client.list_templates()
+for template in templates:
+    print(template.id, template.version, template.is_default, template.metadata.os)
+```
+
+`list_templates()` lists every `template_id`/version `create_sandbox` and
+`run_job` will accept, with metadata (OS, installed language stacks,
+which AI agent CLIs are preinstalled) to help pick one. Not paginated: the
+catalog is the same for every caller. `create_sandbox`'s `template`
+argument may be omitted to use the deployment's configured default
+template, if it has one.
+
+## Organizations
+
+An API key belongs to a user, not a single organization, so one key works
+across every organization that user belongs to. Calls are scoped to
+whichever organization is current on the client.
+
+```python
+organizations = client.list_organizations()
+for org in organizations:
+    print(org.id, org.name, org.personal, org.role)
+
+client.organization_id = organizations[0].id
+```
+
+`list_organizations()` returns every organization the caller belongs to,
+including their personal organization. `Organization.personal` marks that
+one — it's the deterministic tenant an omitted organization context
+resolves to, and every account has exactly one.
+
+Assigning to `client.organization_id` changes which organization
+subsequent calls run against, effective immediately. An empty value is
+rejected as an `InvalidRequestError` rather than silently falling back to
+the personal organization. To set it once at construction instead, pass
+`organization_id=...` to `Tyto(...)`; reading `client.organization_id`
+back returns whatever is currently in effect. See
+[Configuration](/sdks/python/installation#configure) for the full
+precedence and CI guidance.
+
 ## Error handling
 
 All SDK exceptions inherit from `TytoError`.
@@ -418,7 +603,7 @@ All SDK exceptions inherit from `TytoError`.
 from tyto import AuthenticationError, SandboxNotFoundError
 
 try:
-    client.sandboxes.get("sbx_123")
+    client.get_sandbox("sbx_123")
 except AuthenticationError:
     print("check BONYA_API_KEY")
 except SandboxNotFoundError:
@@ -437,8 +622,10 @@ except SandboxNotFoundError:
 | `SandboxCreationFailedError` | Create reached a failed terminal state. |
 | `SandboxCreationTimeoutError` | Create deadline expired. |
 | `CapabilityRejectedError` | Guest capability rejected and couldn't be refreshed. |
-| `SessionExistsError` | `sessions.create()` targeted a name with a non-replaceable record. |
-| `SessionNotFoundError` | `sessions.attach()`/`.kill()` named a session that doesn't exist. |
+| `SessionExistsError` | `create_session()` targeted a name with a non-replaceable record. |
+| `SessionNotFoundError` | `attach_session()`/`kill_session()` named a session that doesn't exist. |
+| `JobRunNotFoundError` | `get_job_run()`/`cancel_job_run()` named a run that doesn't exist. |
+| `JobScheduleNotFoundError` | A job schedule call named a schedule that doesn't exist. |
 | `FilesystemError` | General filesystem failure. |
 | `RemoteFileNotFoundError` | Remote file or directory missing. |
 | `RemoteFileExistsError` | Remote destination already exists. |
@@ -452,13 +639,30 @@ except SandboxNotFoundError:
 The SDK redacts API keys, capabilities, selected operation identifiers,
 and path-like internal details from mapped service error messages.
 
+### Retries and idempotency
+
+`max_retries` (default `2`) controls SDK retries for retryable
+control-plane operations. The SDK retries gRPC `UNAVAILABLE` for create,
+get, list, delete, resume, snapshot create, and snapshot delete, while
+preserving the same request and idempotency key where one exists. Exec
+calls are not retried, except for one capability refresh when the SDK can
+prove an exec capability token is expired before responses start.
+Filesystem calls are not retried on transport unavailability; they may
+refresh a rejected filesystem capability once.
+
+Create and snapshot-create accept an idempotency key so a retried call
+joins the original attempt instead of creating a second resource — see
+[Idempotency](/concepts/idempotency) for what that key does and doesn't
+protect against, and pass one explicitly whenever you might need to retry
+a create across process restarts.
+
 ## Resource cleanup
 
 Use context managers for deterministic cleanup:
 
 ```python
 with Tyto() as client:
-    with client.sandboxes.create(template="ubuntu-24.04") as sandbox:
+    with client.create_sandbox(template="bonya-dev") as sandbox:
         with sandbox.exec_stream(["cat"]) as session:
             session.write(b"hello\n")
             session.close_stdin()
@@ -479,7 +683,7 @@ with Tyto() as client:
 
 For intentionally persistent sandboxes, don't use `with sandbox:`. Store
 `sandbox.id`, close the client, and reconnect later with
-`client.sandboxes.get(id)`.
+`client.get_sandbox(id)`.
 
 ## Examples
 

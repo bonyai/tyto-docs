@@ -20,17 +20,17 @@ tyto preview create $SANDBOX_ID 3000 --name web
 ```
 
 ```ts TypeScript
-const preview = await sandbox.previews.create(3000, { name: "web" });
+const preview = await sandbox.createPreview(3000, { name: "web" });
 console.log(preview.url); // https://pv-<26 chars>.preview.tyto.run
 ```
 
 ```python Python
-preview = sandbox.previews.create(3000, name="web")
+preview = sandbox.create_preview(3000, name="web")
 print(preview.url)
 ```
 
 ```go Go
-preview, err := sandbox.Previews.Create(ctx, 3000, tyto.CreatePreviewOptions{Name: "web"})
+preview, err := sandbox.CreatePreview(ctx, 3000, tyto.CreatePreviewOptions{Name: "web"})
 fmt.Println(preview.URL)
 ```
 </CodeGroup>
@@ -59,11 +59,11 @@ tyto preview create $SANDBOX_ID 8080 --auth public
 ```ts TypeScript
 import { PreviewAuth } from "@bonya-ai/tyto";
 
-const publicPreview = await sandbox.previews.create(8080, { auth: PreviewAuth.PUBLIC });
+const publicPreview = await sandbox.createPreview(8080, { auth: PreviewAuth.PUBLIC });
 ```
 
 ```python Python
-public = sandbox.previews.create(8080, auth=PreviewAuth.PUBLIC)
+public = sandbox.create_preview(8080, auth=PreviewAuth.PUBLIC)
 ```
 </CodeGroup>
 
@@ -77,16 +77,16 @@ You don't have to build that URL by hand — the TypeScript, Python, and Go SDKs
 
 <CodeGroup>
 ```ts TypeScript
-const browserUrl = sandbox.previews.browserUrl(preview);
+const browserUrl = sandbox.previewBrowserUrl(preview);
 // open browserUrl in a browser — one-time entry point
 ```
 
 ```python Python
-browser_url = sandbox.previews.browser_url(preview)
+browser_url = sandbox.preview_browser_url(preview)
 ```
 
 ```go Go
-browserURL := sandbox.Previews.BrowserURL(preview)
+browserURL := sandbox.PreviewBrowserURL(preview)
 ```
 </CodeGroup>
 
@@ -113,13 +113,13 @@ tyto preview delete $SANDBOX_ID $PREVIEW_ID
 ```
 
 ```ts TypeScript
-await sandbox.previews.list();
-await sandbox.previews.delete(preview.id);
+await sandbox.listPreviews();
+await sandbox.deletePreview(preview.id);
 ```
 
 ```python Python
-sandbox.previews.list()
-sandbox.previews.delete(preview.id)
+sandbox.list_previews()
+sandbox.delete_preview(preview.id)
 ```
 </CodeGroup>
 

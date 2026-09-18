@@ -100,17 +100,17 @@ tyto session kill $SANDBOX_ID dev
 ```
 
 ```python Python
-info = sandbox.sessions.create("dev", ["npm", "run", "dev"])
+info = sandbox.create_session("dev", ["npm", "run", "dev"])
 
-session = sandbox.sessions.attach("dev")
+session = sandbox.attach_session("dev")
 for event in session:
     ...
 session.detach()
 
-for info in sandbox.sessions.list():
+for info in sandbox.list_sessions():
     print(info.name, info.status)
 
-sandbox.sessions.kill("dev")
+sandbox.kill_session("dev")
 ```
 </CodeGroup>
 

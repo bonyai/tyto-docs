@@ -52,7 +52,7 @@ Every command accepts these flags, each falling back to an environment variable 
 | Flag | Environment variable | Notes |
 | --- | --- | --- |
 | `--api-key` | `BONYA_API_KEY` | Required, from a flag, env var, or saved login. |
-| `--endpoint` | `BONYA_ENDPOINT` | API endpoint. Defaults to the SDK's built-in default when unset. |
+| `--endpoint` | `BONYA_ENDPOINT` | API endpoint. Defaults to `https://api.tyto.run` when unset. |
 | `--organization-id` | `BONYA_ORGANIZATION_ID` | Omit to use your personal organization; see [`tyto org`](/cli-reference/org). |
 | `--ca-bundle` | `BONYA_CA_BUNDLE` | Path to a PEM CA bundle, for private development CAs. |
 | `--json` | — | Machine-readable JSON instead of tables. Never colored, never prompts. |

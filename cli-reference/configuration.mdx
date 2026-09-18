@@ -25,7 +25,7 @@ If none of the three supply an API key, the command fails immediately with:
 api key is required: pass --api-key, set BONYA_API_KEY, or run `tyto login`
 ```
 
-`--endpoint` and `--organization-id` are optional at every level — an unset endpoint falls back to the SDK's built-in default, and an unset organization ID resolves to your personal organization.
+`--endpoint` and `--organization-id` are optional at every level — an unset endpoint falls back to `https://api.tyto.run`, and an unset organization ID resolves to your personal organization.
 
 Run `tyto whoami` at any time to see exactly which source (`--flag`, `environment variable`, `tyto login (saved)`, or `(not set)`) each setting is currently resolving from.
 
@@ -82,9 +82,9 @@ Ambiguity is reported the same way, with enough detail to resolve it without a p
 ```console
 $ tyto get web --no-input
 3 sandboxes are named "web"; pass an id instead:
-  sbx-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b  running    ubuntu-24.04
-  sbx-9a02aabbccddeeff00112233445566aa  suspended  ubuntu-24.04
-  sbx-c731ffeeddccbbaa99887766554433ff  failed     ubuntu-24.04
+  sbx-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b  running    bonya-dev
+  sbx-9a02aabbccddeeff00112233445566aa  suspended  bonya-dev
+  sbx-c731ffeeddccbbaa99887766554433ff  failed     bonya-dev
 ```
 
 <Note>

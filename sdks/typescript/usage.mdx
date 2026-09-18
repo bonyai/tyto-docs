@@ -1,21 +1,43 @@
 ---
 title: Usage
-description: Sandboxes, exec, sessions, files, previews, and snapshots from TypeScript
+description: Sandboxes, exec, sessions, files, previews, snapshots, jobs, and templates from TypeScript
 ---
 
-Every sandbox operation on `client.sandboxes` also has a flat form
-directly on `Tyto` — `client.createSandbox(...)`, `client.getSandbox(id)`,
-`client.getSandboxByName(name)`, `client.listSandboxes()`,
-`client.deleteSandbox(id)`, `client.resumeSandbox(id)` — for callers who'd
-rather call a verb than navigate a namespace. Both spellings are the same
-implementation.
+## What you can do
 
-Sessions, previews, and snapshots have flat forms too (`client.createSession(sandboxId, name, cmd)`,
-`client.createPreview(sandboxId, port)`, `client.createSnapshot(sandboxId)`,
-and so on), but each does a `getSandbox()` first and then delegates — one
-extra round trip compared to already holding a `Sandbox` handle. Prefer
-`sandbox.sessions.create(...)` (or the equivalent) when a `Sandbox` is
-already in hand; reach for the flat form when all you have is an id.
+| I want to… | Call |
+|---|---|
+| Start a sandbox | `client.createSandbox({ template })` |
+| Reconnect to one | `client.getSandbox(id)` / `.getSandboxByName(name)` |
+| Find my sandboxes | `client.listSandboxes()` |
+| Run a command | `sandbox.exec(cmd)` |
+| Stream output live | `sandbox.execStream(cmd)` |
+| Keep a process running after I disconnect | `sandbox.createSession(name, cmd)` |
+| Move files in and out | `sandbox.readFile`/`.writeFile`/`.uploadFile`/`.downloadFile` |
+| Expose a port to the web | `sandbox.createPreview(port)` |
+| Capture disk state | `sandbox.snapshot()` |
+| Run a managed one-off or scheduled job | `client.runJob(spec)` / `client.createJobSchedule(...)` |
+| See what templates exist | `client.listTemplates()` |
+
+Everything here is a **flat method** directly on `Tyto` or `Sandbox` —
+there is no `client.sandboxes.create(...)`-style namespace to navigate.
+`client.createSandbox(...)`, `client.getSandbox(id)`,
+`client.getSandboxByName(name)`, `client.listSandboxes()`,
+`client.deleteSandbox(id)`, `client.resumeSandbox(id)` are the whole
+sandbox-lifecycle surface on `Tyto`. Once you're holding a `Sandbox`,
+`sandbox.createSession(...)`, `sandbox.createPreview(...)`,
+`sandbox.snapshot(...)`, and the file methods below are flat methods on it
+directly.
+
+<Note>
+`Tyto` also has session/preview convenience methods that take a sandbox id
+directly instead of a `Sandbox` — `client.createSession(sandboxId, name,
+cmd)`, `client.listSessions(sandboxId)`, `client.createPreview(sandboxId,
+port)`, and similar. Each does a `getSandbox()` first and then delegates,
+which is one extra round trip compared to already holding a `Sandbox`
+handle. Prefer calling directly on `sandbox` when you have one in hand;
+reach for a client-level call only when all you have is an id.
+</Note>
 
 ## Create sandboxes
 
@@ -23,18 +45,18 @@ already in hand; reach for the flat form when all you have is an id.
 import { Tyto, Wait } from "@bonya-ai/tyto";
 
 const client = new Tyto();
-const sandbox = await client.sandboxes.create({
-  template: "ubuntu-24.04",
+const sandbox = await client.createSandbox({
+  template: "bonya-dev",
   wait: Wait.READY,
   idempotencyKey: "create-job-123",
 });
 ```
 
-`client.sandboxes.create(options)` returns a `Promise<Sandbox>`.
+`client.createSandbox(options)` returns a `Promise<Sandbox>`.
 
 | Option | Type | Description |
 |---|---|---|
-| `template` | `string` | Required, non-empty. |
+| `template` | `string` | May be omitted to use the deployment's configured default template, if it has one. |
 | `version` | `string` | Template version. Server default when omitted. |
 | `wait` | `Wait \| "ready" \| "none"` | Defaults to `Wait.READY`. |
 | `idempotencyKey` | `string` | Generated and reused for transport retries if omitted. |
@@ -55,38 +77,38 @@ Sandbox fields: `sandbox.id`, `.operationId`, `.template`, `.version`,
 ## Get, list, and get by name
 
 ```ts
-const sandbox = await client.sandboxes.get("sbx_123");
+const sandbox = await client.getSandbox("sbx_123");
 
 import { Status } from "@bonya-ai/tyto";
 
-for await (const summary of client.sandboxes.list({
+for await (const summary of client.listSandboxes({
   states: [Status.RUNNING, Status.SUSPENDED],
   limit: 20,
 })) {
   console.log(summary.id, summary.lastObservedStatus);
 }
 
-const byName = await client.sandboxes.getByName("web-server");
+const byName = await client.getSandboxByName("web-server");
 ```
 
-`get(sandboxId)` requires a non-empty id and returns a usable `Sandbox`
-handle. It does **not** explicitly resume the sandbox — exec and
+`getSandbox(sandboxId)` requires a non-empty id and returns a usable
+`Sandbox` handle. It does **not** explicitly resume the sandbox — exec and
 filesystem calls are what wake a suspended one.
 
-`list(options)` returns an `AsyncIterableIterator<SandboxSummary>` and
-pages as you iterate. `limit: 0` yields nothing without an RPC. `options.name`
-filters to sandboxes carrying an exact display name (names aren't unique,
-so this can still match more than one). Valid `states` filters are
-`Status.CREATING`, `RUNNING`, `SUSPENDING`, `SUSPENDED`, `RESUMING`, and
-`FAILED` — `Status.DELETED` is not a valid filter. A `SandboxSummary` has
-`id`, `operationId`, `template`, `version`, `lastObservedStatus`,
-`failureCode`, `failureMessage` — it cannot run `exec`; call `get(summary.id)`
-first.
+`listSandboxes(options)` returns an `AsyncIterableIterator<SandboxSummary>`
+and pages as you iterate. `limit: 0` yields nothing without an RPC.
+`options.name` filters to sandboxes carrying an exact display name (names
+aren't unique, so this can still match more than one). Valid `states`
+filters are `Status.CREATING`, `RUNNING`, `SUSPENDING`, `SUSPENDED`,
+`RESUMING`, and `FAILED` — `Status.DELETED` is not a valid filter. A
+`SandboxSummary` has `id`, `operationId`, `template`, `version`,
+`lastObservedStatus`, `failureCode`, `failureMessage` — it cannot run
+`exec`; call `getSandbox(summary.id)` first.
 
-`getByName(name)` resolves a display name to a single sandbox. Names are
-not unique: if more than one sandbox carries the name, it throws rather
-than picking one (a later `delete()` could otherwise destroy the wrong
-sandbox). If none match, it throws `SandboxNotFoundError`.
+`getSandboxByName(name)` resolves a display name to a single sandbox.
+Names are not unique: if more than one sandbox carries the name, it throws
+rather than picking one (a later `delete()` could otherwise destroy the
+wrong sandbox). If none match, it throws `SandboxNotFoundError`.
 
 ## Delete and cleanup
 
@@ -112,8 +134,8 @@ exec endpoint/capability, setting `lastObservedStatus` to `Status.RUNNING`.
 `resume()` on a failed sandbox throws `SandboxFailedError` locally, before
 any RPC.
 
-Explicit resume is different from automatic wake: `get()` never calls
-`resume()`, and ordinary exec/filesystem calls don't make a public
+Explicit resume is different from automatic wake: `getSandbox()` never
+calls `resume()`, and ordinary exec/filesystem calls don't make a public
 `ResumeSandbox` RPC — they hit the sandbox's guest endpoint directly, and
 the service may wake it behind that route.
 
@@ -163,6 +185,10 @@ it's half-closed — buffered `input` requires `tty: false`.
 `check: true` calls `result.check()` before returning; on a non-ok result
 it throws `ExecFailedError`, with the original result at `error.result`.
 
+`exec()` buffers stdout and stderr in client memory. Use `execStream()`
+for large output, long-running commands, interactive stdin, or
+cancellation.
+
 ### Streaming exec
 
 ```ts
@@ -201,19 +227,20 @@ Buffered `input` isn't allowed with `tty: true`; use `execStream()` and
 
 ## Managed console sessions
 
-Every `Sandbox` has `sandbox.sessions`, a `SandboxSessions` for named,
-persistent command sessions that **outlive the client connection**. This
-is the key distinction from `execStream()`: an exec process dies when its
-stream closes, but a managed session keeps running detached, and you can
-reattach later — even after the sandbox warm-suspends and resumes — and
-replay what it produced while nobody was watching. Use `exec`/`execStream`
-for one-shot commands; use `sessions` for long-lived terminals like dev
-servers you want to detach from and come back to.
+Every `Sandbox` has flat methods (`createSession`, `listSessions`,
+`killSession`, `attachSession`) for named, persistent command sessions
+that **outlive the client connection**. This is the key distinction from
+`execStream()`: an exec process dies when its stream closes, but a
+managed session keeps running detached, and you can reattach later — even
+after the sandbox warm-suspends and resumes — and replay what it produced
+while nobody was watching. Use `exec`/`execStream` for one-shot commands;
+use managed sessions for long-lived terminals like dev servers you want to
+detach from and come back to.
 
 ```ts
-const info = await sandbox.sessions.create("server", ["bash"], { cols: 120, rows: 40 });
+const info = await sandbox.createSession("server", ["bash"], { cols: 120, rows: 40 });
 
-const session = await sandbox.sessions.attach("server");
+const session = await sandbox.attachSession("server");
 session.write(new TextEncoder().encode("npm run dev\n"));
 session.resize({ cols: 140, rows: 45 });
 for await (const event of session) {
@@ -221,13 +248,13 @@ for await (const event of session) {
 }
 session.detach();
 
-const list = await sandbox.sessions.list();
+const list = await sandbox.listSessions();
 for (const info of list) console.log(info.name, info.status);
 
-await sandbox.sessions.kill("server");
+await sandbox.killSession("server");
 ```
 
-**Create** — `sessions.create(name, command, { env, cwd, cols, rows, replace })`.
+**Create** — `sandbox.createSession(name, command, { env, cwd, cols, rows, replace })`.
 `name` must match `^[a-z][a-z0-9-]{0,31}$`. `command` is a non-empty array
 of non-empty strings (no shell-string convenience like `exec()`). Creating
 over an existing record throws `SessionExistsError` unless `replace: true`
@@ -235,11 +262,11 @@ over an existing record throws `SessionExistsError` unless `replace: true`
 replaced; a running or attached session is never replaced. Returns
 `Promise<SessionInfo>`.
 
-**List** — `sessions.list()` returns a `SessionList`: an immutable,
+**List** — `sandbox.listSessions()` returns a `SessionList`: an immutable,
 iterable sequence of `SessionInfo` that also carries `sandboxSuspended:
 boolean`. Listing works on a suspended sandbox without waking it.
 
-**Attach** — `sessions.attach(name, { cols, rows, maxReplayBytes })`
+**Attach** — `sandbox.attachSession(name, { cols, rows, maxReplayBytes })`
 returns `Promise<SessionStream>`, resolved once admitted. `session.info`,
 `.replayedBytes`, `.historyDropped` describe the bounded replay from while
 you were detached (the replay ring is 1 MiB). Attaching preempts any other
@@ -255,84 +282,195 @@ no separate stderr), `Exit { exitCode, signaled, signal }`, `SessionEnded
 dimension), `session.detach()` (ends gracefully, process keeps running),
 `session.close()` (calls `detach()` if still open).
 
-**Kill** — `sessions.kill(name, { signal, graceMs })` signals the
+**Kill** — `sandbox.killSession(name, { signal, graceMs })` signals the
 process group (default `TERM`), escalating to `SIGKILL` after `graceMs`
 (default 5000ms). Returns `Promise<SessionInfo>`, but exit info isn't
 guaranteed on that response — `kill()` doesn't wait for the guest to reap
-the process, so a `list()` shortly after is the reliable way to see the
-final exit code. Killing an unknown name throws `SessionNotFoundError`.
+the process, so a `listSessions()` shortly after is the reliable way to
+see the final exit code. Killing an unknown name throws `SessionNotFoundError`.
 
 `SessionInfo`: `name`, `command`, `workingDir`, `status`, `attached`,
 `startedAt`, `lastActivityAt`, `endedAt`, `exit`. `SessionStatus` values:
 `UNSPECIFIED`, `STARTING`, `IDLE`, `ATTACHED`, `EXITED`, `KILLED`, `FAILED`.
 
-A session's process never blocks idle suspend by itself — only an
-*attached* stream does. A quiet, detached session lets the sandbox
-warm-suspend and survives the resume with process and replay buffer
-intact.
+A session's process never blocks idle suspend by itself. Only an
+*attached* stream does, for as long as it stays open; a quiet, detached
+session lets the sandbox warm-suspend, and survives the resume with its
+process and replay buffer intact — the same session, not a new one.
+Output from a detached session still counts as activity and defers idle
+suspend while it keeps producing it.
+
+Session calls transparently reissue an expired capability and retry once,
+the same way `execStream()` and the file methods below do. Call
+`sandbox.reissueCapability()` directly only if you manage tokens yourself.
 
 ## Files
 
-Every `Sandbox` has `sandbox.files`, a `SandboxFiles`:
+File operations are flat methods directly on `Sandbox`:
 
 ```ts
-await sandbox.files.write("/workspace/message.txt", "hello\n");
-const payload = await sandbox.files.read("/workspace/message.txt");
+await sandbox.writeFile("/workspace/message.txt", "hello\n");
+const payload = await sandbox.readFile("/workspace/message.txt");
 
-await sandbox.files.upload("local-input.bin", "/workspace/input.bin");
-await sandbox.files.download("/workspace/input.bin", "local-output.bin");
+await sandbox.uploadFile("local-input.bin", "/workspace/input.bin");
+await sandbox.downloadFile("/workspace/input.bin", "local-output.bin");
 
-const entries = await sandbox.files.list("/workspace");
-const info = await sandbox.files.stat("/workspace/message.txt");
+const entries = await sandbox.listFiles("/workspace");
+const info = await sandbox.statFile("/workspace/message.txt");
 
-await sandbox.files.mkdir("/workspace/output");
-await sandbox.files.move("/workspace/message.txt", "/workspace/output/message.txt");
-await sandbox.files.remove("/workspace/output", true);
+await sandbox.mkdirFile("/workspace/output");
+await sandbox.moveFile("/workspace/message.txt", "/workspace/output/message.txt");
+await sandbox.removeFile("/workspace/output", true);
 ```
 
 | Method | Signature |
 |---|---|
-| `read` | `(path: string) => Promise<Uint8Array>` |
-| `write` | `(path: string, data: Uint8Array \| string) => Promise<void>` |
-| `upload` | `(localPath: string, remotePath: string) => Promise<void>` |
-| `download` | `(remotePath: string, localPath: string) => Promise<void>` |
-| `list` | `(path: string) => Promise<FileInfo[]>` |
-| `stat` | `(path: string) => Promise<FileInfo>` |
-| `mkdir` | `(path: string) => Promise<void>` |
-| `remove` | `(path: string, recursive?: boolean) => Promise<void>` |
-| `move` | `(source: string, destination: string) => Promise<void>` |
+| `readFile` | `(path: string) => Promise<Uint8Array>` |
+| `writeFile` | `(path: string, data: Uint8Array \| string) => Promise<void>` |
+| `uploadFile` | `(localPath: string, remotePath: string) => Promise<void>` |
+| `downloadFile` | `(remotePath: string, localPath: string) => Promise<void>` |
+| `listFiles` | `(path: string) => Promise<FileInfo[]>` |
+| `statFile` | `(path: string) => Promise<FileInfo>` |
+| `mkdirFile` | `(path: string) => Promise<void>` |
+| `removeFile` | `(path: string, recursive?: boolean) => Promise<void>` |
+| `moveFile` | `(source: string, destination: string) => Promise<void>` |
 
-`read()` buffers the whole file and throws `FilesystemLimitError` before
-exceeding `filesystemReadLimit`. `write()` streams in 64 KiB chunks
-through a guest-side temp file and publishes atomically; a symlink at the
-final path is not followed. `upload()`/`download()` stream in 64 KiB
-chunks; `download()` uses a temp file, fsync, and atomic rename. `list()`
-returns immediate children sorted by name, or throws — no partial results.
-`stat()` returns lstat-style metadata (a final symlink is reported as a
-symlink, not followed). `move()` is same-filesystem, atomic, no-overwrite
-— cross-filesystem throws `CrossFilesystemMoveError`, existing destination
-throws `RemoteFileExistsError`. `remove(path, true)` recurses without
+`readFile()` buffers the whole file and throws `FilesystemLimitError`
+before exceeding `filesystemReadLimit`. `writeFile()` streams in 64 KiB
+chunks through a guest-side temp file and publishes atomically; a symlink
+at the final path is not followed. `uploadFile()`/`downloadFile()` stream
+in 64 KiB chunks; `downloadFile()` uses a temp file, fsync, and atomic
+rename. `listFiles()` returns immediate children sorted by name, or
+throws — no partial results. `statFile()` returns lstat-style metadata (a
+final symlink is reported as a symlink, not followed). `moveFile()` is
+same-filesystem, atomic, no-overwrite — cross-filesystem throws
+`CrossFilesystemMoveError`, existing destination throws
+`RemoteFileExistsError`. `removeFile(path, true)` recurses without
 following symlinks and is not atomic.
 
 `FileInfo` is immutable: `path`, `name`, `kind` (`FileKind.FILE` /
 `DIRECTORY` / `SYMLINK` / `OTHER`), `size`, `mode`, `modifiedAt`.
 
+## Jobs
+
+A job is a managed run of a command or script — on a new sandbox (created
+and, by default, deleted for you) or an existing one. Jobs are how you run
+work without holding a `Sandbox` open yourself for the duration.
+
+```ts
+const run = await client.runJob({
+  newSandbox: { template: "bonya-dev" },
+  cmd: ["./run-tests.sh"],
+});
+console.log(run.status, run.result?.exitCode);
+```
+
+`runJob` blocks until the run finishes, bounded by the client's own
+timeout — use it for short jobs. `startJob` returns immediately with a
+run id instead:
+
+```ts
+const { runId } = await client.startJob({
+  existingSandboxId: "sbx-123",
+  cmd: ["./long-migration.sh"],
+});
+// ... later ...
+const detail = await client.getJobRun(runId);
+console.log(detail.status, detail.spec, detail.timeline);
+```
+
+`JobSpec` requires exactly one of `existingSandboxId`/`newSandbox`, and
+exactly one of `cmd`/`script`. `disposition` (`Disposition.DELETE`, the
+default, or `Disposition.KEEP`) controls what happens to a sandbox the job
+itself created once the run ends; it's not meaningful for
+`existingSandboxId`.
+
+`getJobRun` returns `JobRunDetail`, which adds the stored `spec` and an
+activity `timeline` to the run summary `listJobRuns` returns. There is no
+endpoint to edit a run in place: to "edit and rerun" one, fetch it with
+`getJobRun`, change what you need on its `spec`, and pass that to `runJob`
+or `startJob` as a new run.
+
+```ts
+for await (const run of client.listJobRuns({ sandboxId: "sbx-123" })) {
+  console.log(run.runId, run.status);
+}
+await client.cancelJobRun(runId); // requests cancellation; cleanup still runs
+```
+
+`cancelJobRun` cancels rather than terminates, so the run's own cleanup
+(e.g. deleting a sandbox it created) still executes.
+
+## Job schedules
+
+A schedule wraps a `JobSpec` with timing — cron, interval, or a one-shot
+future time — so it runs without you calling `runJob` yourself.
+
+```ts
+const schedule = await client.createJobSchedule(
+  { intervalSeconds: 3600 },
+  { newSandbox: { template: "bonya-dev" }, cmd: ["./nightly-report.sh"] },
+);
+console.log(schedule.scheduleId, schedule.nextRunAtUnixNanos);
+```
+
+`ScheduleSpec` requires exactly one of `cronExpressions`, `intervalSeconds`,
+and `runAtUnixNanos` (a one-shot: a single future calendar time, refused
+if in the past). `overlap` (default `ScheduleOverlap.SKIP`) controls what
+a fire does when the previous run from the same schedule is still going.
+
+```ts
+for await (const schedule of client.listJobSchedules()) {
+  console.log(schedule.scheduleId);
+}
+const schedule = await client.getJobSchedule(scheduleId);
+
+// updateJobSchedule replaces the whole schedule -- pass every field you
+// want to keep, not just the one you're changing.
+await client.updateJobSchedule(scheduleId, { intervalSeconds: 7200 }, jobSpec);
+
+await client.setJobSchedulePaused(scheduleId, true, { note: "pausing for maintenance" });
+await client.triggerJobSchedule(scheduleId); // fires one run now, ignoring timing
+await client.deleteJobSchedule(scheduleId);
+```
+
+`JobSchedule.recentRunIds` holds the last 10 fires' run ids (oldest first,
+including manual triggers), each a valid `getJobRun` id — so you can
+follow a schedule straight to its recent runs without a separate
+`listJobRuns` call.
+
+## Templates
+
+```ts
+const templates = await client.listTemplates();
+for (const template of templates) {
+  console.log(template.id, template.version, template.isDefault, template.metadata.os);
+}
+```
+
+`listTemplates()` lists every `templateId`/version `createSandbox` and
+`runJob` will accept, with metadata (OS, installed language stacks, which
+AI agent CLIs are preinstalled) to help pick one. Not paginated: the
+catalog is the same for every caller. `createSandbox`'s `template` option
+may be omitted to use the deployment's configured default template, if it
+has one.
+
 ## Preview URLs
 
 A preview publishes one guest port at an HTTPS URL a browser can open. The
 server must bind a port in 1024–65535; privileged ports are never
-previewable.
+previewable, so a guest's ssh can't be handed out by accident.
 
 ```ts
-const preview = await sandbox.previews.create(3000, { name: "web" });
+const preview = await sandbox.createPreview(3000, { name: "web" });
 console.log(preview.url); // https://pv-<26 chars>.preview.tyto.run
 
-await sandbox.previews.list();
-await sandbox.previews.delete(preview.id);
+await sandbox.listPreviews();
+await sandbox.deletePreview(preview.id);
 ```
 
 A token-mode preview needs the sandbox's capability, and a URL isn't a
-safe place to leave one. `sandbox.previews.browserUrl(preview)` produces a
+safe place to leave one. `sandbox.previewBrowserUrl(preview)` produces a
 single-use entry point: the gateway validates the token, trades it for a
 host-scoped `HttpOnly` cookie, and redirects without the token in the URL.
 It throws on a public preview, which has no token to exchange.
@@ -340,21 +478,39 @@ It throws on a public preview, which has no token to exchange.
 ```ts
 import { PreviewAuth } from "@bonya-ai/tyto";
 
-const publicPreview = await sandbox.previews.create(8080, { auth: PreviewAuth.PUBLIC });
+const publicPreview = await sandbox.createPreview(8080, { auth: PreviewAuth.PUBLIC });
 ```
 
 `PreviewAuth.PUBLIC` means anyone with the URL reaches the service, no
 credential — the only protection is the 26 random characters in the
-hostname. `TOKEN` is the default; an omitted `auth` never yields a public
-URL.
+hostname, so treat it as published to the internet. `TOKEN` is the
+default; an omitted `auth` never yields a public URL.
 
-`create()` returns a fresh capability and the SDK stores it on the sandbox
-automatically (the preview scope is newer than a sandbox's original
-token). If you're holding a capability elsewhere, refresh it explicitly
-with `sandbox.reissueCapability()`.
+`createPreview()` returns a fresh capability and the SDK stores it on the
+sandbox automatically (the preview scope is newer than a sandbox's
+original token). If you're holding a capability elsewhere, refresh it
+explicitly with `sandbox.reissueCapability()`.
 
 Traffic to a preview URL wakes a suspended sandbox; the first request
 after suspend pays resume latency and may return `503` with `Retry-After`.
+
+### Preview limitations
+
+- **Bind to the interface, not localhost only.** A server listening solely
+  on `127.0.0.1` inside the guest is reachable, but one bound to a
+  specific non-loopback address may not be. `0.0.0.0` is the reliable
+  choice.
+- **Server-Sent Events reconnect.** An SSE stream is cut at the 120-second
+  request cap since it isn't an HTTP upgrade. `EventSource` reconnects
+  automatically; a long-lived stream that must not break should use a
+  WebSocket.
+- **WebSocket auth is cookie or bearer only.** WebSocket clients don't
+  follow redirects, so the token-query-parameter exchange doesn't work for
+  them — open a normal page first to obtain the cookie, or send the
+  capability as a bearer header.
+- **A suspend cuts open connections.** Preview connections deliberately
+  don't defer idle-suspend, so an open WebSocket doesn't keep a sandbox
+  alive. The next request wakes it.
 
 ## Snapshots
 
@@ -384,6 +540,35 @@ observed-deleted sandbox throws `SandboxDeletedError`, a failed one throws
 object. A snapshot has its own identifier — you can delete it after
 deleting the sandbox that produced it.
 
+## Organizations
+
+An API key belongs to a user, not a single organization, so one key works
+across every organization that user belongs to. Calls are scoped to
+whichever organization is current on the client.
+
+```ts
+const organizations = await client.listOrganizations();
+for (const org of organizations) {
+  console.log(org.id, org.name, org.personal, org.role);
+}
+
+client.organizationId = organizations[0].id;
+```
+
+`listOrganizations()` returns every organization the caller belongs to,
+including their personal organization. `Organization.personal` marks that
+one — it's the deterministic tenant an omitted organization context
+resolves to, and every account has exactly one.
+
+Assigning to `client.organizationId` changes which organization
+subsequent calls run against, effective immediately. An empty value is
+rejected as an `InvalidRequestError` rather than silently falling back to
+the personal organization. To set it once at construction instead, pass
+`organizationId` in the constructor options; reading
+`client.organizationId` back returns whatever is currently in effect. See
+[Configuration](/sdks/typescript/installation#configure) for the full
+precedence and CI guidance.
+
 ## Error handling
 
 All SDK exceptions inherit from `TytoError` (itself extending `Error`),
@@ -393,7 +578,7 @@ exposing `message`, `sandboxId`, `operationId`, `idempotencyKey`.
 import { AuthenticationError, SandboxNotFoundError } from "@bonya-ai/tyto";
 
 try {
-  await client.sandboxes.get("sbx_123");
+  await client.getSandbox("sbx_123");
 } catch (error) {
   if (error instanceof AuthenticationError) {
     console.log("check BONYA_API_KEY");
@@ -417,8 +602,10 @@ try {
 | `SandboxCreationFailedError` | Create reached a failed terminal state. |
 | `SandboxCreationTimeoutError` | Create deadline expired. |
 | `CapabilityRejectedError` | Guest capability rejected and couldn't be refreshed. |
-| `SessionExistsError` | `sessions.create()` targeted a name with a non-replaceable record. |
-| `SessionNotFoundError` | `sessions.attach()`/`.kill()` named a session that doesn't exist. |
+| `SessionExistsError` | `createSession()` targeted a name with a non-replaceable record. |
+| `SessionNotFoundError` | `attachSession()`/`killSession()` named a session that doesn't exist. |
+| `JobRunNotFoundError` | `getJobRun()`/`cancelJobRun()` named a run that doesn't exist. |
+| `JobScheduleNotFoundError` | A job schedule call named a schedule that doesn't exist. |
 | `FilesystemError` | General filesystem failure. |
 | `RemoteFileNotFoundError` | Remote file or directory missing. |
 | `RemoteFileExistsError` | Remote destination already exists. |
@@ -433,6 +620,23 @@ The SDK redacts API keys, capabilities, and selected operation identifiers
 from mapped service error messages, and replaces path-like substrings with
 `[redacted-path]`.
 
+### Retries and idempotency
+
+`maxRetries` (default `2`) controls SDK retries for retryable
+control-plane operations. The SDK retries gRPC `UNAVAILABLE` for create,
+get, list, delete, resume, snapshot create, and snapshot delete, while
+preserving the same request and idempotency key where one exists. Exec
+calls are not retried, except for one capability refresh when the SDK can
+prove an exec capability token is expired before responses start.
+Filesystem calls are not retried on transport unavailability; they may
+refresh a rejected filesystem capability once.
+
+Create and snapshot-create accept an idempotency key so a retried call
+joins the original attempt instead of creating a second resource — see
+[Idempotency](/concepts/idempotency) for what that key does and doesn't
+protect against, and pass one explicitly whenever you might need to retry
+a create across process restarts.
+
 ## Resource cleanup
 
 There's no automatic cleanup on scope exit — use `try`/`finally`:
@@ -440,7 +644,7 @@ There's no automatic cleanup on scope exit — use `try`/`finally`:
 ```ts
 const client = new Tyto();
 try {
-  const sandbox = await client.sandboxes.create({ template: "ubuntu-24.04" });
+  const sandbox = await client.createSandbox({ template: "bonya-dev" });
   try {
     const session = sandbox.execStream(["cat"]);
     try {
@@ -464,14 +668,14 @@ try {
 - `sandbox.delete()` affects the remote sandbox and updates the local
   handle to `Status.DELETED`; idempotent on the same object.
 - Closing an unfinished `execStream()` session cancels the remote exec.
-- Closing an unfinished `sessions.attach()` stream detaches the guest
+- Closing an unfinished `attachSession()` stream detaches the guest
   process rather than killing it — it keeps running.
 - `snapshot.delete()` deletes the remote snapshot and is a local no-op
   when repeated.
 
 For intentionally persistent sandboxes, don't delete on scope exit — store
 `sandbox.id`, close the client, and reconnect later with
-`client.sandboxes.get(id)`.
+`client.getSandbox(id)`.
 
 ## Examples
 

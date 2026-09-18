@@ -3,7 +3,7 @@ title: Quickstart
 description: Create a sandbox and run a command in under 5 minutes
 ---
 
-This walks through the smallest possible loop: get a key, create a sandbox, run a command in it, clean up. Every example uses the `ubuntu-24.04` template — see [Templates](/concepts/templates) for what that means.
+This walks through the smallest possible loop: get a key, create a sandbox, run a command in it, clean up. Every example uses the `bonya-dev` template — see [Templates](/concepts/templates) for what that means.
 
 <Steps>
   <Step title="Get an API key">
@@ -52,18 +52,18 @@ This walks through the smallest possible loop: get a key, create a sandbox, run 
     curl -s -X POST "https://api.tyto.run/v1/sandbox?wait=ready" \
       -H "Authorization: Bearer $BONYA_API_KEY" \
       -H "Content-Type: application/json" \
-      -d '{"template_id": "ubuntu-24.04"}'
+      -d '{"template_id": "bonya-dev"}'
     ```
 
     ```shell CLI
-    tyto create --template ubuntu-24.04
+    tyto create --template bonya-dev
     ```
 
     ```ts TypeScript
     import { Tyto } from "@bonya-ai/tyto";
 
     const client = new Tyto();
-    const sandbox = await client.sandboxes.create({ template: "ubuntu-24.04" });
+    const sandbox = await client.createSandbox({ template: "bonya-dev" });
     console.log(sandbox.id);
     ```
 
@@ -71,7 +71,7 @@ This walks through the smallest possible loop: get a key, create a sandbox, run 
     from tyto import Tyto
 
     with Tyto() as client:
-        sandbox = client.sandboxes.create(template="ubuntu-24.04")
+        sandbox = client.create_sandbox(template="bonya-dev")
         print(sandbox.id)
     ```
 
@@ -83,7 +83,7 @@ This walks through the smallest possible loop: get a key, create a sandbox, run 
     defer client.Close()
 
     ctx := context.Background()
-    sandbox, err := client.Sandboxes.Create(ctx, "ubuntu-24.04")
+    sandbox, err := client.CreateSandbox(ctx, "bonya-dev")
     if err != nil {
         log.Fatal(err)
     }
@@ -91,7 +91,7 @@ This walks through the smallest possible loop: get a key, create a sandbox, run 
     ```
     </CodeGroup>
 
-    The response body is `{ "sandbox": { "sandbox_id": "...", "state": "RUNNING", "template_id": "ubuntu-24.04", ... } }`. See [Sandboxes](/concepts/sandboxes) for the full lifecycle.
+    The response body is `{ "sandbox": { "sandbox_id": "...", "state": "RUNNING", "template_id": "bonya-dev", ... } }`. See [Sandboxes](/concepts/sandboxes) for the full lifecycle.
   </Step>
   <Step title="Run a command">
     The simplest way to run something is buffered exec — one JSON request, one JSON response, no WebSocket involved. A non-zero exit code is still a `200`; check `exit_code` in the body.

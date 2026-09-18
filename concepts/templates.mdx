@@ -20,7 +20,7 @@ stacks, and available agent CLIs.
 ```json
 {
   "templates": [{
-    "template_id": "ubuntu-24.04-sessions",
+    "template_id": "bonya-dev",
     "version": "2026.08",
     "digest": "sha256:…",
     "is_default": true,
@@ -56,7 +56,7 @@ Both fields are set on [sandbox create](/concepts/sandboxes#creating-a-sandbox)
 `template_id` and `template_version`.
 
 ```json
-{ "template_id": "ubuntu-24.04-sessions" }
+{ "template_id": "bonya-dev" }
 ```
 
 The request above uses the selected template ID's default version. To use the
@@ -68,6 +68,10 @@ fields):
 ```
 
 If the deployment has no configured default, `template_id` is required.
+
+<Note>
+A job's `new_sandbox` spec accepts the same `template_id`/`template_version` fields as sandbox create, and can omit them the same way to fall back to the deployment default. See [Jobs](/sdks/go/usage#jobs) (or the equivalent page for your SDK) for the job spec shape.
+</Note>
 
 ## Related
 
