@@ -22,6 +22,10 @@ Create a new sandbox — an isolated cloud compute environment — from a templa
 | `name` | string (max 80) | no | Display label. Not unique — every lookup is by `sandbox_id`. |
 | `wait` | boolean | no | If true, block until the sandbox is ready instead of returning immediately. |
 
+<Note>
+`template_id` is always required through this MCP tool, even though the underlying `POST /v1/sandbox` endpoint (and the REST/CLI/jobs interfaces to it) allow omitting it in favor of a deployment's default template. Use `template_list` to discover ids and versions.
+</Note>
+
 **Returns:** the sandbox envelope (`{ sandbox: {...} }`) including `sandbox_id`, `operation_id`, `template_id`, `template_version`, `state`, and optional `name`/`failure_code`/`failure_message`.
 
 ### `sandbox_list`
