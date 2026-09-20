@@ -17,7 +17,10 @@ paths:
   /v1/sandbox:
     get:
       operationId: listSandboxes
-      summary: List sandboxes (page_size, page_token, states; DELETED is not filterable)
+      summary: List sandboxes
+      description: >-
+        Paginated with page_size/page_token, optionally filtered by states or
+        an exact-match name. DELETED is not a filterable state.
       parameters:
         - $ref: '#/components/parameters/OrganizationHeader'
         - name: page_size
@@ -48,7 +51,10 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     post:
       operationId: createSandbox
-      summary: Create a sandbox (202; ?wait=ready blocks to 201)
+      summary: Create a sandbox
+      description: >-
+        Returns 202 Accepted immediately by default; pass ?wait=ready to
+        block until the sandbox is ready, which returns 201 Created instead.
       parameters:
         - $ref: '#/components/parameters/OrganizationHeader'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -81,7 +87,8 @@ paths:
   /v1/templates:
     get:
       operationId: listTemplates
-      summary: >
+      summary: List templates
+      description: >
         The deployment's immutable template catalog: every template_id and
         version Create/RunJob will accept, and which version each template_id
         resolves to when a caller omits version. Same catalog for every
@@ -105,6 +112,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     get:
       operationId: getSandbox
+      summary: Get a sandbox
       responses:
         '200':
           description: Sandbox
@@ -117,14 +125,21 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     delete:
       operationId: deleteSandbox
-      summary: Synchronous teardown; repeat delete of a tombstone is 204; unknown or cross-org is 404
+      summary: Delete a sandbox
+      description: >-
+        Synchronous teardown. Repeating a delete on an already-deleted
+        (tombstoned) sandbox returns 204; an unknown or cross-org sandbox_id
+        returns 404.
       responses:
         '204': { description: Deleted }
         default: { $ref: '#/components/responses/Problem' }
   /v1/sandbox/{sandbox_id}/resume:
     post:
       operationId: resumeSandbox
-      summary: Synchronous resume; already_running is 200
+      summary: Resume a sandbox
+      description: >-
+        Synchronously resumes a suspended sandbox. If it was already running,
+        the call is a no-op but still returns 200 with already_running: true.
       parameters:
         - $ref: '#/components/parameters/SandboxID'
         - $ref: '#/components/parameters/OrganizationHeader'
@@ -141,7 +156,8 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     get:
       operationId: listPreviews
-      summary: List preview URLs for a sandbox; never returns capabilities
+      summary: List preview URLs
+      description: List preview URLs for a sandbox. Never returns capabilities.
       responses:
         '200':
           description: Preview list
@@ -151,7 +167,8 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     post:
       operationId: createPreview
-      summary: Create a preview URL; returns a token-free URL plus capability exactly once
+      summary: Create a preview URL
+      description: Returns a token-free URL plus a one-time capability.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -169,7 +186,11 @@ paths:
   /v1/sandbox/{sandbox_id}/previews/{preview_id}:
     delete:
       operationId: deletePreview
-      summary: Idempotently delete a preview URL without leaking cross-org existence
+      summary: Delete a preview URL
+      description: >-
+        Idempotent, and deliberately avoids leaking cross-org existence: a
+        preview belonging to another organization behaves the same as one
+        that doesn't exist.
       parameters:
         - $ref: '#/components/parameters/SandboxID'
         - $ref: '#/components/parameters/PreviewID'
@@ -183,7 +204,8 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     post:
       operationId: execDirect
-      summary: Buffered non-TTY exec; JSON body only
+      summary: Run a command (buffered)
+      description: Synchronous, non-TTY exec — JSON body in, JSON body out.
       requestBody:
         required: true
         content:
@@ -198,7 +220,10 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     get:
       operationId: execTTY
-      summary: Transient TTY over WebSocket (upgrade; START frame carries TTYStartRequest)
+      summary: Run a command (TTY)
+      description: >-
+        A transient, interactive TTY session over a WebSocket upgrade. The
+        START frame carries a TTYStartRequest.
       responses:
         '101': { description: Switching protocols; admission happens at START }
         default: { $ref: '#/components/responses/Problem' }
@@ -208,7 +233,10 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     get:
       operationId: listSessions
-      summary: Never wakes; suspended sandboxes answer from the suspend snapshot
+      summary: List sessions
+      description: >-
+        Never wakes a suspended sandbox — it answers from the suspend-time
+        snapshot instead.
       responses:
         '200':
           description: Session list
@@ -218,7 +246,11 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     post:
       operationId: createSession
-      summary: Name-keyed create; live duplicate is 409 session_exists; replace applies to terminal sessions only
+      summary: Create a session
+      description: >-
+        Keyed by name. Creating over a live session returns 409
+        session_exists; replace only applies to a terminal (already-exited)
+        session, never a running or attached one.
       requestBody:
         required: true
         content:
@@ -234,7 +266,9 @@ paths:
   /v1/sandbox/{sandbox_id}/sessions/{session_name}/attach:
     get:
       operationId: attachSession
-      summary: Session attach over WebSocket (upgrade; START frame carries AttachStartRequest)
+      summary: Attach to a session
+      description: >-
+        A WebSocket upgrade. The START frame carries an AttachStartRequest.
       parameters:
         - $ref: '#/components/parameters/SandboxID'
         - $ref: '#/components/parameters/SessionName'
@@ -245,6 +279,7 @@ paths:
   /v1/sandbox/{sandbox_id}/sessions/{session_name}/kill:
     post:
       operationId: killSession
+      summary: Kill a session
       parameters:
         - $ref: '#/components/parameters/SandboxID'
         - $ref: '#/components/parameters/SessionName'
@@ -264,7 +299,8 @@ paths:
   /v1/sandbox/{sandbox_id}/fs/read:
     get:
       operationId: fsRead
-      summary: Raw file bytes
+      summary: Read a file
+      description: Returns the raw file contents as application/octet-stream.
       parameters:
         - $ref: '#/components/parameters/SandboxID'
         - $ref: '#/components/parameters/OrganizationHeader'
@@ -278,7 +314,8 @@ paths:
   /v1/sandbox/{sandbox_id}/fs/write:
     put:
       operationId: fsWrite
-      summary: Raw file bytes
+      summary: Write a file
+      description: The request body is the raw file contents as application/octet-stream.
       parameters:
         - $ref: '#/components/parameters/SandboxID'
         - $ref: '#/components/parameters/OrganizationHeader'
@@ -293,6 +330,7 @@ paths:
   /v1/sandbox/{sandbox_id}/fs/list:
     get:
       operationId: fsList
+      summary: List a directory
       parameters:
         - $ref: '#/components/parameters/SandboxID'
         - $ref: '#/components/parameters/OrganizationHeader'
@@ -307,6 +345,7 @@ paths:
   /v1/sandbox/{sandbox_id}/fs/stat:
     get:
       operationId: fsStat
+      summary: Get file metadata
       parameters:
         - $ref: '#/components/parameters/SandboxID'
         - $ref: '#/components/parameters/OrganizationHeader'
@@ -321,6 +360,7 @@ paths:
   /v1/sandbox/{sandbox_id}/fs/mkdir:
     post:
       operationId: fsMkdir
+      summary: Create a directory
       parameters:
         - $ref: '#/components/parameters/SandboxID'
         - $ref: '#/components/parameters/OrganizationHeader'
@@ -335,6 +375,7 @@ paths:
   /v1/sandbox/{sandbox_id}/fs/rename:
     post:
       operationId: fsRename
+      summary: Rename or move a file
       parameters:
         - $ref: '#/components/parameters/SandboxID'
         - $ref: '#/components/parameters/OrganizationHeader'
@@ -349,6 +390,7 @@ paths:
   /v1/sandbox/{sandbox_id}/fs:
     delete:
       operationId: fsDelete
+      summary: Delete a file or directory
       parameters:
         - $ref: '#/components/parameters/SandboxID'
         - $ref: '#/components/parameters/OrganizationHeader'
@@ -367,7 +409,8 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     post:
       operationId: createJob
-      summary: >-
+      summary: Create a job
+      description: >-
         Run or start a job on a new or existing sandbox. wait=false (default)
         starts durably and returns run_id immediately; wait=true blocks for
         the result, bounded by the caller's own request timeout.
@@ -396,7 +439,10 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     get:
       operationId: listJobRuns
-      summary: List a tenant's runs, newest first
+      summary: List job runs
+      description: >-
+        A tenant's runs, newest first, optionally filtered to sandbox_id or
+        schedule_id.
       parameters:
         - name: sandbox_id
           in: query
@@ -423,7 +469,10 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     get:
       operationId: getJobRun
-      summary: Full run detail, including the stored spec and an activity timeline
+      summary: Get a job run
+      description: >-
+        Full run detail, including the stored spec that started it and an
+        activity timeline.
       responses:
         '200':
           description: Run detail
@@ -438,9 +487,10 @@ paths:
   /v1/job/{run_id}/cancel:
     post:
       operationId: cancelJobRun
-      summary: >-
-        Request cancellation. Cancels rather than terminates, so the run's own
-        cleanup (e.g. deleting a sandbox it created) still executes.
+      summary: Cancel a job run
+      description: >-
+        Requests cancellation rather than forcibly terminating, so the run's
+        own cleanup (e.g. deleting a sandbox it created) still executes.
       parameters:
         - $ref: '#/components/parameters/RunID'
         - $ref: '#/components/parameters/OrganizationHeader'
@@ -456,6 +506,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     post:
       operationId: createJobSchedule
+      summary: Create a job schedule
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -475,6 +526,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     get:
       operationId: listJobSchedules
+      summary: List job schedules
       parameters:
         - name: page_size
           in: query
@@ -495,6 +547,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     get:
       operationId: getJobSchedule
+      summary: Get a job schedule
       responses:
         '200':
           description: Schedule
@@ -507,6 +560,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     patch:
       operationId: updateJobSchedule
+      summary: Update a job schedule
       requestBody:
         required: true
         content:
@@ -524,12 +578,14 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     delete:
       operationId: deleteJobSchedule
+      summary: Delete a job schedule
       responses:
         '204': { description: Deleted }
         default: { $ref: '#/components/responses/Problem' }
   /v1/job-schedule/{schedule_id}/pause:
     post:
       operationId: setJobSchedulePaused
+      summary: Pause or resume a job schedule
       parameters:
         - $ref: '#/components/parameters/ScheduleID'
         - $ref: '#/components/parameters/OrganizationHeader'
@@ -556,7 +612,8 @@ paths:
   /v1/job-schedule/{schedule_id}/trigger:
     post:
       operationId: triggerJobSchedule
-      summary: Trigger one fire immediately, overriding the schedule's own timing
+      summary: Trigger a job schedule
+      description: Fires one run immediately, overriding the schedule's own timing.
       parameters:
         - $ref: '#/components/parameters/ScheduleID'
         - $ref: '#/components/parameters/OrganizationHeader'
@@ -580,7 +637,8 @@ paths:
       operationId: listOrganizations
       security:
         - supabaseJwt: []
-      summary: >
+      summary: List organizations
+      description: >
         Organizations the caller belongs to, with their role in each. JWT
         provisioning operation; API keys are refused.
       responses:
@@ -600,8 +658,9 @@ paths:
       operationId: createOrganization
       security:
         - supabaseJwt: []
-      summary: >
-        Create an organization owned by the caller. JWT provisioning
+      summary: Create an organization
+      description: >
+        Creates an organization owned by the caller. JWT provisioning
         operation; API keys are refused.
       requestBody:
         required: true
@@ -626,7 +685,8 @@ paths:
       operationId: getOrganization
       security:
         - supabaseJwt: []
-      summary: Any member may read; a non-member is 404, never 403
+      summary: Get an organization
+      description: Any member may read; a non-member gets 404, never 403.
       responses:
         '200':
           description: Organization
@@ -642,7 +702,8 @@ paths:
       operationId: updateOrganization
       security:
         - supabaseJwt: []
-      summary: Rename; owner only. Organization deletion is out of scope.
+      summary: Rename an organization
+      description: Owner only. Organization deletion is out of scope.
       requestBody:
         required: true
         content:
@@ -664,7 +725,8 @@ paths:
       operationId: listMembers
       security:
         - supabaseJwt: []
-      summary: Any member may list
+      summary: List members
+      description: Any member of the organization may list.
       parameters:
         - $ref: '#/components/parameters/OrganizationID'
       responses:
@@ -691,7 +753,8 @@ paths:
       operationId: updateMember
       security:
         - supabaseJwt: []
-      summary: Owner only. Demoting the final owner is 409 final_owner.
+      summary: Update a member's role
+      description: Owner only. Demoting the final owner returns 409 final_owner.
       requestBody:
         required: true
         content:
@@ -716,7 +779,8 @@ paths:
       operationId: removeMember
       security:
         - supabaseJwt: []
-      summary: >
+      summary: Remove a member
+      description: >
         Administrative removal (owner only) and member self-leave share this
         verb. Removing the final owner is 409 final_owner, which is also why
         the sole owner of a personal organization cannot leave it.
@@ -734,7 +798,10 @@ paths:
       x-internal: true
       security:
         - supabaseJwt: []
-      summary: Dashboard-facing; Supabase JWT required, API keys rejected. Owner only.
+      summary: List invitations
+      description: >-
+        Dashboard-facing; Supabase JWT required, API keys rejected. Owner
+        only.
       responses:
         '200':
           description: Invitations
@@ -753,7 +820,8 @@ paths:
       x-internal: true
       security:
         - supabaseJwt: []
-      summary: >
+      summary: Create an invitation
+      description: >
         Dashboard-facing; owner only. The response carries the raw token
         exactly once and no acceptance URL: the dashboard builds
         .../invitations/accept#token=... itself, because TApi does not know
@@ -792,6 +860,7 @@ paths:
       x-internal: true
       security:
         - supabaseJwt: []
+      summary: Revoke an invitation
       parameters:
         - $ref: '#/components/parameters/OrganizationID'
         - name: invitation_id
@@ -814,7 +883,8 @@ paths:
       operationId: getOrganizationUsage
       security:
         - supabaseJwt: []
-      summary: >-
+      summary: Get usage and credit balance
+      description: >-
         Owner or billing role. Reports total recorded usage and its current
         settled credit balance; both are unbounded (all usage recorded so
         far), not scoped to a billing period.
@@ -832,7 +902,8 @@ paths:
       operationId: listOrganizationTopUpOffers
       security:
         - supabaseJwt: []
-      summary: >-
+      summary: List top-up offers
+      description: >-
         Owner or billing role. Lists Lago-configured top-up offers. Neither
         collects payment nor grants credit.
       parameters:
@@ -855,7 +926,8 @@ paths:
       operationId: startOrganizationTopUpPurchase
       security:
         - supabaseJwt: []
-      summary: >-
+      summary: Start a top-up purchase
+      description: >-
         Owner or billing role. Starts a Lago-hosted checkout for one
         configured offer and returns its opaque, short-lived payment URL.
         Reposting the same idempotency_key resumes rather than duplicates an
@@ -894,7 +966,8 @@ paths:
       operationId: listOrganizationCoupons
       security:
         - supabaseJwt: []
-      summary: Owner or billing role. Lists coupons applied to the organization.
+      summary: List coupons
+      description: Owner or billing role. Lists coupons applied to the organization.
       parameters:
         - $ref: '#/components/parameters/OrganizationID'
       responses:
@@ -914,7 +987,8 @@ paths:
       operationId: applyOrganizationCoupon
       security:
         - supabaseJwt: []
-      summary: >-
+      summary: Apply a coupon
+      description: >-
         Owner or billing role. Applies a Lago-managed coupon by code; pricing
         and eligibility remain authoritative in the billing provider.
       parameters:
@@ -944,7 +1018,8 @@ paths:
       operationId: listOrganizationInvoices
       security:
         - supabaseJwt: []
-      summary: >-
+      summary: List invoices
+      description: >-
         Owner or billing role. page is one-based; per_page defaults to 25 and
         is capped at 50 regardless of the value requested. A listed invoice
         carries no billed period and no lines: the provider omits them from
@@ -976,7 +1051,8 @@ paths:
       operationId: getOrganizationInvoice
       security:
         - supabaseJwt: []
-      summary: >-
+      summary: Get an invoice
+      description: >-
         Owner or billing role. Carries the full billed period, its line
         items, and a per-member usage breakdown the provider cannot supply:
         user ids deliberately never leave the cluster.
@@ -1002,7 +1078,8 @@ paths:
       operationId: getOrganizationBilling
       security:
         - supabaseJwt: []
-      summary: >-
+      summary: Get a billing overview
+      description: >-
         Owner or billing role. The Spending header: current calendar period,
         priced usage so far, entitlement limits, both credit balances, and
         top-up availability. degraded names any provider-dependent
@@ -1024,7 +1101,8 @@ paths:
       operationId: getOrganizationUsageBreakdown
       security:
         - supabaseJwt: []
-      summary: >-
+      summary: Get a usage breakdown
+      description: >-
         Owner or billing role. from and to are both required RFC 3339
         timestamps, unlike GET .../usage's all-time default; from must
         precede to. Reports the two supported billable metrics with their
@@ -1051,7 +1129,8 @@ paths:
       operationId: getOrganizationUsageSeries
       security:
         - supabaseJwt: []
-      summary: >-
+      summary: Get a usage time series
+      description: >-
         Owner or billing role. from and to are both required; bucket is
         hour or day and defaults to day. Only non-empty buckets are
         returned. estimated_cents is either present on every point or
@@ -1081,7 +1160,8 @@ paths:
       operationId: listOrganizationPayments
       security:
         - supabaseJwt: []
-      summary: >-
+      summary: List payments
+      description: >-
         Owner or billing role. A dated credit-activity ledger merged from
         paid top-up purchases and promotional grants, local state only --
         no provider call. page is one-based; per_page defaults to 25 and
@@ -1109,7 +1189,8 @@ paths:
       x-internal: true
       security:
         - supabaseJwt: []
-      summary: >
+      summary: Accept an invitation
+      description: >
         Dashboard-facing; the dashboard reads the token from the URL fragment
         and posts it in the body. The invitation must have been issued to the
         authenticated caller's own address, compared case-insensitively; a
@@ -1144,7 +1225,9 @@ paths:
       operationId: listApiKeys
       security:
         - supabaseJwt: []
-      summary: JWT-only; keys can never manage keys. JWT provisioning operation.
+      summary: List API keys
+      description: >-
+        JWT-only; keys can never manage keys. JWT provisioning operation.
       responses:
         '200':
           description: Keys (prefix and last4 only)
@@ -1156,7 +1239,10 @@ paths:
       operationId: createApiKey
       security:
         - supabaseJwt: []
-      summary: JWT-only; the secret is shown exactly once. JWT provisioning operation.
+      summary: Create an API key
+      description: >-
+        JWT-only; the secret is shown exactly once. JWT provisioning
+        operation.
       requestBody:
         required: false
         content:
@@ -1174,7 +1260,8 @@ paths:
       operationId: revokeApiKey
       security:
         - supabaseJwt: []
-      summary: JWT-only
+      summary: Revoke an API key
+      description: JWT-only.
       parameters:
         - name: key_id
           in: path
@@ -1193,7 +1280,8 @@ paths:
     post:
       operationId: mintDeviceLogin
       security: []
-      summary: >
+      summary: Start a device login
+      description: >
         Unauthenticated; mints a single-use device-login token and the
         dashboard URL the CLI opens a browser to. No request body.
       responses:
@@ -1208,7 +1296,10 @@ paths:
       operationId: approveDeviceLogin
       security:
         - supabaseJwt: []
-      summary: JWT-only; approves a CLI device-login token. JWT provisioning operation.
+      summary: Approve a device login
+      description: >-
+        JWT-only; approves a CLI device-login token. JWT provisioning
+        operation.
       requestBody:
         required: true
         content:
@@ -1221,7 +1312,8 @@ paths:
     post:
       operationId: pollDeviceLogin
       security: []
-      summary: >
+      summary: Poll a device login
+      description: >
         Unauthenticated; the token in the body is the credential. Always 200:
         pending, approved (carries the api_key exactly once), or expired.
         An unknown token is 404.
