@@ -21,6 +21,32 @@ GET /v1/sandbox/{sandbox_id}/fs/read
 
 Returns `200` with the raw file contents as `application/octet-stream`.
 
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/read?path=/workspace/hello.txt" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -o ./hello.downloaded.txt
+```
+
+```shell CLI
+tyto fs read $SANDBOX_ID /workspace/hello.txt
+```
+
+```ts TypeScript
+const payload = await sandbox.readFile("/workspace/hello.txt");
+```
+
+```python Python
+payload = sandbox.read_file("/workspace/hello.txt")
+```
+
+```go Go
+payload, err := sandbox.ReadFile(ctx, "/workspace/hello.txt")
+```
+</CodeGroup>
+
+**MCP:** `fs_read` returns the file's contents as a UTF-8 string, since MCP tool calls carry inline text rather than binary bytes.
+
 ## Writing a file
 
 ```
@@ -32,6 +58,61 @@ PUT /v1/sandbox/{sandbox_id}/fs/write
 </ParamField>
 
 The request body is the raw file contents (`application/octet-stream`). Returns `204` on success — no response body.
+
+<CodeGroup>
+```shell cURL
+curl -s -X PUT "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/write?path=/workspace/hello.txt" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @./hello.txt
+```
+
+```shell CLI
+tyto fs write $SANDBOX_ID /workspace/hello.txt ./hello.txt
+```
+
+```ts TypeScript
+await sandbox.writeFile("/workspace/hello.txt", "hello\n");
+```
+
+```python Python
+sandbox.write_file("/workspace/hello.txt", "hello\n")
+```
+
+```go Go
+sandbox.WriteFile(ctx, "/workspace/hello.txt", []byte("hello\n"))
+```
+</CodeGroup>
+
+**MCP:** `fs_write` takes UTF-8 text `content` and creates or overwrites the file, returning `{ ok: true, path, bytes }`.
+
+## Uploading and downloading a local file
+
+There's no dedicated REST endpoint for upload/download — the CLI and SDKs implement it as a local file streamed through the same raw-bytes `fs/read` and `fs/write` endpoints above.
+
+<CodeGroup>
+```shell CLI
+tyto fs upload $SANDBOX_ID ./hello.txt /workspace/hello.txt
+tyto fs download $SANDBOX_ID /workspace/hello.txt ./hello.downloaded.txt
+```
+
+```ts TypeScript
+await sandbox.uploadFile("./hello.txt", "/workspace/hello.txt");
+await sandbox.downloadFile("/workspace/hello.txt", "./hello.downloaded.txt");
+```
+
+```python Python
+sandbox.upload_file("./hello.txt", "/workspace/hello.txt")
+sandbox.download_file("/workspace/hello.txt", "./hello.downloaded.txt")
+```
+
+```go Go
+sandbox.UploadFile(ctx, "./hello.txt", "/workspace/hello.txt")
+sandbox.DownloadFile(ctx, "/workspace/hello.txt", "./hello.downloaded.txt")
+```
+</CodeGroup>
+
+**MCP:** there's no `fs` upload/download tool — MCP tool calls carry inline UTF-8 text, not binary file transfers, so `fs_read`/`fs_write` are the only way to move file contents through MCP.
 
 ## Listing a directory
 
@@ -45,6 +126,31 @@ GET /v1/sandbox/{sandbox_id}/fs/list
 
 Returns `FsListResponse`: `{ "files": [ ...FsFileInfo ] }`.
 
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/list?path=/workspace" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```shell CLI
+tyto fs ls $SANDBOX_ID /workspace
+```
+
+```ts TypeScript
+const entries = await sandbox.listFiles("/workspace");
+```
+
+```python Python
+entries = sandbox.list_files("/workspace")
+```
+
+```go Go
+entries, err := sandbox.ListFiles(ctx, "/workspace")
+```
+</CodeGroup>
+
+**MCP:** `fs_list` returns `{ files: [{ path, name, kind, size, mode, modified_at_unix_nanos }, ...] }`.
+
 ## Getting file metadata
 
 ```
@@ -56,6 +162,34 @@ GET /v1/sandbox/{sandbox_id}/fs/stat
 </ParamField>
 
 Returns `FsStatResponse`: `{ "file": { ...FsFileInfo } }`.
+
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/stat?path=/workspace/hello.txt" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```shell CLI
+tyto fs stat $SANDBOX_ID /workspace/hello.txt
+```
+
+```ts TypeScript
+const info = await sandbox.statFile("/workspace/hello.txt");
+console.log(info.kind, info.size);
+```
+
+```python Python
+info = sandbox.stat_file("/workspace/hello.txt")
+print(info.kind, info.size)
+```
+
+```go Go
+info, err := sandbox.StatFile(ctx, "/workspace/hello.txt")
+fmt.Println(info.Kind, info.Size)
+```
+</CodeGroup>
+
+**MCP:** `fs_stat` returns `{ file: { path, name, kind, size, mode, modified_at_unix_nanos } }`.
 
 ### FsFileInfo fields
 
@@ -92,6 +226,33 @@ Request body (`FsMkdirRequest`):
 
 Returns `201` on success.
 
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/mkdir" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/workspace/output"}'
+```
+
+```shell CLI
+tyto fs mkdir $SANDBOX_ID /workspace/output
+```
+
+```ts TypeScript
+await sandbox.mkdirFile("/workspace/output");
+```
+
+```python Python
+sandbox.mkdir_file("/workspace/output")
+```
+
+```go Go
+sandbox.MkdirFile(ctx, "/workspace/output")
+```
+</CodeGroup>
+
+**MCP:** `fs_mkdir` creates the directory (and any missing parents), returning `{ ok: true, path }`.
+
 ## Renaming or moving
 
 ```
@@ -109,6 +270,33 @@ Request body (`FsRenameRequest`):
 
 Returns `200` on success.
 
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/rename" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"from": "/workspace/hello.txt", "to": "/workspace/output/hello.txt"}'
+```
+
+```shell CLI
+tyto fs mv $SANDBOX_ID /workspace/hello.txt /workspace/output/hello.txt
+```
+
+```ts TypeScript
+await sandbox.moveFile("/workspace/hello.txt", "/workspace/output/hello.txt");
+```
+
+```python Python
+sandbox.move_file("/workspace/hello.txt", "/workspace/output/hello.txt")
+```
+
+```go Go
+sandbox.MoveFile(ctx, "/workspace/hello.txt", "/workspace/output/hello.txt")
+```
+</CodeGroup>
+
+**MCP:** `fs_rename` covers this, returning `{ ok: true, from, to }`.
+
 ## Deleting
 
 ```
@@ -123,6 +311,31 @@ DELETE /v1/sandbox/{sandbox_id}/fs
 </ParamField>
 
 Returns `204` on success.
+
+<CodeGroup>
+```shell cURL
+curl -s -X DELETE "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs?path=/workspace/output&recursive=true" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```shell CLI
+tyto fs rm $SANDBOX_ID /workspace/output --recursive
+```
+
+```ts TypeScript
+await sandbox.removeFile("/workspace/output", true);
+```
+
+```python Python
+sandbox.remove_file("/workspace/output", recursive=True)
+```
+
+```go Go
+sandbox.RemoveFile(ctx, "/workspace/output", true) // recursive
+```
+</CodeGroup>
+
+**MCP:** `fs_delete` covers this — pass `recursive: true` to delete a non-empty directory. Returns `{ ok: true, deleted: path }`.
 
 ## Related
 

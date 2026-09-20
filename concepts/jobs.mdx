@@ -11,9 +11,64 @@ A job is not a replacement for [exec](/concepts/exec) or [managed sessions](/con
 
 ## Creating a job
 
+<CodeGroup>
+```shell cURL
+# run and wait for the result (wait is a body field, not a query param)
+curl -s -X POST "https://api.tyto.run/v1/job" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"new_sandbox": {"template_id": "bonya-dev"}, "cmd": ["./run-tests.sh"], "wait": true}'
+
+# start durably and check later (wait defaults to false)
+curl -s -X POST "https://api.tyto.run/v1/job" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"existing_sandbox_id": "'"$SANDBOX_ID"'", "cmd": ["./long-migration.sh"]}'
 ```
-POST /v1/job
+
+```ts TypeScript
+const run = await client.runJob({
+  newSandbox: { template: "bonya-dev" },
+  cmd: ["./run-tests.sh"],
+});
+console.log(run.status, run.result?.exitCode);
+
+const { runId } = await client.startJob({
+  existingSandboxId: SANDBOX_ID,
+  cmd: ["./long-migration.sh"],
+});
 ```
+
+```python Python
+from tyto import JobSandboxSpec, JobSpec
+
+run = client.run_job(JobSpec(
+    new_sandbox=JobSandboxSpec(template="bonya-dev"),
+    cmd=("./run-tests.sh",),
+))
+print(run.status, run.result.exit_code)
+
+run_id, already_running = client.start_job(JobSpec(
+    existing_sandbox_id=SANDBOX_ID,
+    cmd=("./long-migration.sh",),
+))
+```
+
+```go Go
+run, err := client.RunJob(ctx, tyto.JobSpec{
+    NewSandbox: &tyto.JobSandboxSpec{Template: "bonya-dev"},
+    Cmd:        []string{"./run-tests.sh"},
+})
+fmt.Println(run.Status, run.Result.ExitCode)
+
+runID, alreadyRunning, err := client.StartJob(ctx, tyto.JobSpec{
+    ExistingSandboxID: sandboxID,
+    Cmd:               []string{"./long-migration.sh"},
+})
+```
+</CodeGroup>
+
+There's no `tyto job` CLI command — jobs are reached through REST or an SDK. **MCP:** `job_create` covers both modes — pass `wait: true` to block for the result or leave it `false` to get a `run_id` back immediately.
 
 The request body (`JobRequest`) requires **exactly one** of `existing_sandbox_id`/`new_sandbox`, and **exactly one** of `cmd`/`script`:
 
@@ -60,33 +115,109 @@ A run's `status` moves through the states the job's own command or script produc
 
 ## Listing and inspecting runs
 
-```
-GET /v1/job
+`GET /v1/job` is paginated, newest first; optionally filtered to `sandbox_id` or `schedule_id` (runs fired by a [job schedule](#job-schedules)). `GET /v1/job/{run_id}` returns the full run detail: the run summary plus the **stored job spec** that started it and an activity **timeline**. This is the endpoint to call before an edit-and-rerun, described above.
+
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/job?sandbox_id=$SANDBOX_ID" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+
+curl -s "https://api.tyto.run/v1/job/$RUN_ID" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
 ```
 
-Paginated, newest first; optionally filtered to `sandbox_id` or `schedule_id` (runs fired by a [job schedule](#job-schedules)).
+```ts TypeScript
+for await (const run of client.listJobRuns({ sandboxId: SANDBOX_ID })) {
+  console.log(run.runId, run.status);
+}
 
-```
-GET /v1/job/{run_id}
+const detail = await client.getJobRun(runId);
+console.log(detail.status, detail.spec, detail.timeline);
 ```
 
-Returns the full run detail: the run summary plus the **stored job spec** that started it and an activity **timeline**. This is the endpoint to call before an edit-and-rerun, described above.
+```python Python
+for run in client.list_job_runs(sandbox_id=SANDBOX_ID):
+    print(run.run_id, run.status)
+
+detail = client.get_job_run(run_id)
+print(detail.status, detail.spec, detail.timeline)
+```
+
+```go Go
+runs, err := client.ListJobRuns(ctx, tyto.ListJobRunsOptions{SandboxID: sandboxID})
+
+detail, err := client.GetJobRun(ctx, runID)
+fmt.Println(detail.Status, detail.Spec, detail.Timeline)
+```
+</CodeGroup>
+
+There's no `tyto job` CLI command. **MCP:** `job_list` pages through runs; `job_get` returns one run's full detail.
 
 ## Canceling a run
 
-```
-POST /v1/job/{run_id}/cancel
+`POST /v1/job/{run_id}/cancel` requests cancellation rather than forcibly terminating — the run's own cleanup (for example, deleting a sandbox it created, per `disposition`) still executes before the run reaches its terminal state.
+
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/job/$RUN_ID/cancel" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
 ```
 
-Requests cancellation rather than forcibly terminating — the run's own cleanup (for example, deleting a sandbox it created, per `disposition`) still executes before the run reaches its terminal state.
+```ts TypeScript
+await client.cancelJobRun(runId); // requests cancellation; cleanup still runs
+```
+
+```python Python
+client.cancel_job_run(run_id)  # requests cancellation; cleanup still runs
+```
+
+```go Go
+err = client.CancelJobRun(ctx, runID) // requests cancellation; cleanup still runs
+```
+</CodeGroup>
+
+There's no `tyto job` CLI command. **MCP:** `job_cancel` requests cancellation the same way.
 
 ## Job schedules
 
 A **job schedule** wraps a job spec with timing, so it runs on its own without a caller invoking create each time.
 
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/job-schedule" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"interval_s": 3600, "job": {"new_sandbox": {"template_id": "bonya-dev"}, "cmd": ["./nightly-report.sh"]}}'
 ```
-POST /v1/job-schedule
+
+```ts TypeScript
+const schedule = await client.createJobSchedule(
+  { intervalSeconds: 3600 },
+  { newSandbox: { template: "bonya-dev" }, cmd: ["./nightly-report.sh"] },
+);
+console.log(schedule.scheduleId, schedule.nextRunAtUnixNanos);
 ```
+
+```python Python
+from tyto import ScheduleSpec
+
+schedule = client.create_job_schedule(
+    ScheduleSpec(interval_seconds=3600),
+    JobSpec(new_sandbox=JobSandboxSpec(template="bonya-dev"), cmd=("./nightly-report.sh",)),
+)
+print(schedule.schedule_id, schedule.next_run_at_unix_nanos)
+```
+
+```go Go
+schedule, err := client.CreateJobSchedule(ctx,
+    tyto.ScheduleSpec{IntervalSeconds: 3600},
+    tyto.JobSpec{NewSandbox: &tyto.JobSandboxSpec{Template: "bonya-dev"}, Cmd: []string{"./nightly-report.sh"}},
+)
+fmt.Println(schedule.ScheduleID, schedule.NextRunAtUnixNanos)
+```
+</CodeGroup>
+
+There's no `tyto job-schedule` CLI command. **MCP:** `job_schedule_create` covers this.
 
 <ParamField body="cron_expressions" type="string[]">
   Cron expressions to fire on. Exactly one of `cron_expressions`/`interval_s`/`run_at_unix_nanos` is required.
@@ -118,6 +249,60 @@ POST /v1/job-schedule
 `GET /v1/job-schedule/{schedule_id}` returns the schedule's timing, stored job spec, pause state, next run time, and its **recent run ids**: the last 10 fires (oldest first, including manual triggers), each a valid `GET /v1/job/{run_id}` id — enough to follow a schedule straight to its recent runs without a separate list call.
 
 `POST /v1/job-schedule/{schedule_id}/pause` sets the paused state without deleting the schedule. `POST /v1/job-schedule/{schedule_id}/trigger` fires one run immediately, ignoring the schedule's own timing — useful for testing a schedule without waiting for it. `DELETE /v1/job-schedule/{schedule_id}` permanently removes it, without canceling any run currently in flight.
+
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/job-schedule" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+
+curl -s -X POST "https://api.tyto.run/v1/job-schedule/$SCHEDULE_ID/trigger" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```ts TypeScript
+for await (const s of client.listJobSchedules()) {
+  console.log(s.scheduleId);
+}
+const schedule = await client.getJobSchedule(scheduleId);
+
+// updateJobSchedule replaces the whole schedule -- pass every field you
+// want to keep, not just the one you're changing.
+await client.updateJobSchedule(scheduleId, { intervalSeconds: 7200 }, jobSpec);
+
+await client.setJobSchedulePaused(scheduleId, true, { note: "pausing for maintenance" });
+await client.triggerJobSchedule(scheduleId); // fires one run now, ignoring timing
+await client.deleteJobSchedule(scheduleId);
+```
+
+```python Python
+schedules = client.list_job_schedules()
+schedule = client.get_job_schedule(schedule_id)
+
+# update_job_schedule replaces the whole schedule -- pass every field you
+# want to keep, not just the one you're changing.
+schedule = client.update_job_schedule(schedule_id, ScheduleSpec(interval_seconds=7200), job_spec)
+
+schedule = client.set_job_schedule_paused(schedule_id, True, note="pausing for maintenance")
+client.trigger_job_schedule(schedule_id)  # fires one run now, ignoring timing
+client.delete_job_schedule(schedule_id)
+```
+
+```go Go
+schedules, err := client.ListJobSchedules(ctx)
+schedule, err = client.GetJobSchedule(ctx, scheduleID)
+
+// UpdateJobSchedule replaces the whole schedule -- pass every field you
+// want to keep, not just the one you're changing.
+schedule, err = client.UpdateJobSchedule(ctx, scheduleID,
+    tyto.ScheduleSpec{IntervalSeconds: 7200}, jobSpec)
+
+schedule, err = client.SetJobSchedulePaused(ctx, scheduleID, true, "pausing for maintenance")
+err = client.TriggerJobSchedule(ctx, scheduleID) // fires one run now, ignoring timing
+err = client.DeleteJobSchedule(ctx, scheduleID)
+```
+</CodeGroup>
+
+There's no `tyto job-schedule` CLI command. **MCP:** `job_schedule_list` and `job_schedule_trigger` cover the calls above (plus `job_schedule_get`, `_update`, `_pause`, and `_delete` for the rest of the surface).
 
 ## Related
 

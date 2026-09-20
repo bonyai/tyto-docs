@@ -7,9 +7,35 @@ A **preview** exposes a port inside a sandbox as an HTTPS URL, so you can view a
 
 ## Creating a preview
 
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/previews" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"port": 3000, "name": "web"}'
 ```
-POST /v1/sandbox/{sandbox_id}/previews
+
+```shell CLI
+tyto preview create $SANDBOX_ID 3000 --name web
 ```
+
+```ts TypeScript
+const preview = await sandbox.createPreview(3000, { name: "web" });
+console.log(preview.url);
+```
+
+```python Python
+preview = sandbox.create_preview(3000, name="web")
+print(preview.url)
+```
+
+```go Go
+preview, err := sandbox.CreatePreview(ctx, 3000, tyto.CreatePreviewOptions{Name: "web"})
+fmt.Println(preview.URL)
+```
+</CodeGroup>
+
+**MCP:** the `preview_create` tool exposes this, with `capability_jws` deliberately dropped from the result — see below.
 
 Request body (`PreviewCreateRequest`):
 
@@ -73,19 +99,82 @@ Returns `201` with `PreviewCreateResponse`:
 
 In `token` mode, the client navigates once to `preview.url` with `?bonya_token=<capability_jws>` appended. Roxy (the preview proxy) validates the token, sets a host-scoped `Secure`, `HttpOnly` cookie, and redirects to the same URL with `bonya_token` stripped — before any guest content is rendered. After that one exchange, the cookie carries the session; the token itself should not be stored in URLs or logs beyond that single navigation.
 
+Each SDK wraps this exchange in a `previewBrowserUrl`-style helper, which builds the one-time URL from the `capability_jws` returned by create. There's no cURL or CLI example for this step — it's a browser navigation, not a request/response call — and no MCP tool, since `preview_create`'s MCP result deliberately omits `capability_jws` in the first place.
+
+<CodeGroup>
+```ts TypeScript
+const url = sandbox.previewBrowserUrl(preview);
+// open `url` in a browser
+```
+
+```python Python
+import webbrowser
+webbrowser.open(sandbox.preview_browser_url(preview))
+```
+
+```go Go
+url, err := sandbox.PreviewBrowserURL(preview)
+// open url in a browser
+```
+</CodeGroup>
+
+Open it once and let the cookie carry the session — the URL itself should not be shared, since anyone who receives it holds the sandbox's data-plane capability until it expires. It throws/raises/errors (per SDK) on a public preview, which has no token to exchange.
+
 ## Listing previews
 
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/previews" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
 ```
-GET /v1/sandbox/{sandbox_id}/previews
+
+```shell CLI
+tyto preview list $SANDBOX_ID
 ```
+
+```ts TypeScript
+await sandbox.listPreviews();
+```
+
+```python Python
+sandbox.list_previews()
+```
+
+```go Go
+previews, err := sandbox.ListPreviews(ctx)
+```
+</CodeGroup>
+
+**MCP:** the `preview_list` tool covers this.
 
 Returns `PreviewListResponse`: `{ "previews": [ ...Preview ] }`. As noted above, list **never** includes `capability_jws` — only create does.
 
 ## Deleting a preview
 
+<CodeGroup>
+```shell cURL
+curl -s -X DELETE "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/previews/$PREVIEW_ID" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
 ```
-DELETE /v1/sandbox/{sandbox_id}/previews/{preview_id}
+
+```shell CLI
+tyto preview delete $SANDBOX_ID $PREVIEW_ID
 ```
+
+```ts TypeScript
+await sandbox.deletePreview(preview.id);
+```
+
+```python Python
+sandbox.delete_preview(preview.id)
+```
+
+```go Go
+err = sandbox.DeletePreview(ctx, preview.ID)
+```
+</CodeGroup>
+
+**MCP:** the `preview_delete` tool covers this, and is likewise idempotent.
 
 <Note>
 Delete is idempotent and deliberately avoids leaking cross-org existence — deleting a preview that doesn't exist (or belongs to another organization) behaves the same as deleting one that does, rather than distinguishing the two cases.

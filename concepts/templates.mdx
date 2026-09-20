@@ -8,14 +8,39 @@ catalog of template IDs and versions at `GET /v1/templates`.
 
 ## Discovering templates
 
-```http
-GET /v1/templates
-```
-
 The catalog is shared by every caller in the deployment and is not scoped to
 an organization. Each entry includes its `template_id`, immutable `version`,
 digest, and optional metadata: a description, base OS, preinstalled language
 stacks, and available agent CLIs.
+
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/templates" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```ts TypeScript
+const templates = await client.listTemplates();
+for (const template of templates) {
+  console.log(template.id, template.version, template.isDefault, template.metadata.os);
+}
+```
+
+```python Python
+templates = client.list_templates()
+for template in templates:
+    print(template.id, template.version, template.is_default, template.metadata.os)
+```
+
+```go Go
+templates, err := client.ListTemplates(ctx)
+for _, template := range templates {
+    fmt.Println(template.ID, template.Version, template.IsDefault, template.Metadata.OS)
+}
+```
+</CodeGroup>
+
+There's no `tyto template` CLI command; `tyto create` offers the catalog interactively instead. **MCP:** the `template_list` tool exposes the same catalog.
 
 ```json
 {

@@ -17,7 +17,42 @@ There are three distinct ways to run a command in a sandbox. Pick based on wheth
 POST /v1/sandbox/{sandbox_id}/exec
 ```
 
-Synchronous, non-TTY, JSON request and response — no WebSocket upgrade involved. The request body (`DirectExecRequest`) extends the common command shape:
+Synchronous, non-TTY, JSON request and response — no WebSocket upgrade involved. One JSON request, one JSON response; a non-zero exit code is still a `200` — check `exit_code` in the body.
+
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/exec" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"cmd": ["echo", "hello from tyto"]}'
+```
+
+```shell CLI
+tyto exec $SANDBOX_ID -- echo "hello from tyto"
+```
+
+```ts TypeScript
+const result = await sandbox.exec(["echo", "hello from tyto"]);
+console.log(result.stdout, result.exitCode);
+```
+
+```python Python
+result = sandbox.exec(["echo", "hello from tyto"])
+print(result.stdout, result.exit_code)
+```
+
+```go Go
+result, err := sandbox.Exec(ctx, []string{"echo", "hello from tyto"})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(result.Stdout(), result.ExitCode)
+```
+</CodeGroup>
+
+**MCP:** the `sandbox_exec` tool runs a buffered command the same way.
+
+The request body (`DirectExecRequest`) extends the common command shape:
 
 <ParamField body="cmd" type="string[]" required>
   Argv to run. At least one element.
@@ -79,6 +114,36 @@ GET /v1/sandbox/{sandbox_id}/exec
 ```
 
 An HTTP upgrade to a WebSocket for a transient, interactive TTY session — one-off, not tracked as a named session. The START frame carries a `TTYStartRequest`. See [WebSockets](/concepts/websockets) for how the upgrade, START frame, and admission-at-START model work — that mechanism isn't repeated here.
+
+There's no raw cURL example for this mode — it's a WebSocket upgrade, not a single request/response — but the CLI and every SDK reach it directly: the CLI's `--tty` flag and each SDK's `tty: true` option both drive this exact endpoint, not a separate mechanism.
+
+<CodeGroup>
+```shell CLI
+tyto exec $SANDBOX_ID --tty -- bash
+```
+
+```ts TypeScript
+const result = await sandbox.exec(["bash", "-lc", "stty size; printf done"], { tty: true, check: true });
+console.log(result.stdout);
+```
+
+```python Python
+result = sandbox.exec(["bash", "-lc", "stty size; printf done"], tty=True, check=True)
+print(result.stdout)
+```
+
+```go Go
+result, err := sandbox.Exec(ctx, []string{"bash", "-lc", "stty size; printf done"}, tyto.ExecOptions{TTY: true, Check: true})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(result.Stdout())
+```
+</CodeGroup>
+
+Streaming a TTY session (for full interactive forwarding, with resize) works the same way over each SDK's streaming call — see [Streaming exec](/guides/examples#stream-a-command-streaming-exec) for the non-TTY version of that pattern; pass `tty: true` (plus matching `cols`/`rows`) to get terminal semantics on the stream instead.
+
+There's no MCP tool for TTY exec — [MCP tools](/mcp/tools) notes the WebSocket `exec` and session `attach` endpoints don't fit a request/response tool call; `sandbox_exec` is buffered-only.
 
 ## Managed sessions
 
