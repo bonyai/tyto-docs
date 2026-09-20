@@ -59,6 +59,8 @@ Every command accepts these flags, each falling back to an environment variable 
 | `--no-color` | `NO_COLOR` | Plain text output. |
 | `--no-input` | — | Never prompt; fail with a clear message when an argument is missing. |
 
+`--ca-bundle`, `--endpoint`, and `--no-input` are fully functional but hidden from `tyto --help` output.
+
 ## Sandboxes are named by name *or* id
 
 Every command that takes a sandbox accepts **either a name or an id, in the same argument** — you never have to say which one you meant:
