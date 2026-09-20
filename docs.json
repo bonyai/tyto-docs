@@ -68,7 +68,8 @@
               "guides/transfer-files",
               "guides/expose-a-preview",
               "guides/snapshot-a-sandbox",
-              "guides/manage-your-team"
+              "guides/manage-your-team",
+              "guides/examples"
             ]
           }
         ]
