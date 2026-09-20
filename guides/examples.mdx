@@ -1,0 +1,618 @@
+---
+title: Examples
+description: Every core operation, side by side across cURL, the CLI, and every SDK
+---
+
+This page is a side-by-side comparison, not a full reference — for every parameter, flag, and field, see the [CLI Reference](/cli-reference/overview), the [TypeScript](/sdks/typescript/usage), [Python](/sdks/python/usage), and [Go](/sdks/go/usage) SDK usage pages, and [MCP tools](/mcp/tools). Every example uses the `bonya-dev` template and a `$SANDBOX_ID` set from a prior create call, the same conventions as the [Quickstart](/quickstart).
+
+## Create a sandbox
+
+Starts a new sandbox from a template. REST returns `202` immediately by default; `?wait=ready` blocks until it's up and returns `201` instead.
+
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox?wait=ready" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"template_id": "bonya-dev"}'
+```
+
+```shell CLI
+tyto create --template bonya-dev
+```
+
+```ts TypeScript
+import { Tyto } from "@bonya-ai/tyto";
+
+const client = new Tyto();
+const sandbox = await client.createSandbox({ template: "bonya-dev" });
+console.log(sandbox.id);
+```
+
+```python Python
+from tyto import Tyto
+
+with Tyto() as client:
+    sandbox = client.create_sandbox(template="bonya-dev")
+    print(sandbox.id)
+```
+
+```go Go
+client, err := tyto.NewClient()
+if err != nil {
+    log.Fatal(err)
+}
+defer client.Close()
+
+sandbox, err := client.CreateSandbox(ctx, "bonya-dev")
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(sandbox.ID)
+```
+</CodeGroup>
+
+**MCP:** the `sandbox_create` tool exposes this to any connected agent.
+
+## Get and list sandboxes
+
+Reconnect to a sandbox by id, or page through every sandbox in the organization, optionally filtered by state.
+
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+
+curl -s "https://api.tyto.run/v1/sandbox?states=running&states=suspended" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```shell CLI
+tyto get $SANDBOX_ID
+tyto list --state running,suspended
+```
+
+```ts TypeScript
+import { Status } from "@bonya-ai/tyto";
+
+const sandbox = await client.getSandbox(SANDBOX_ID);
+for await (const summary of client.listSandboxes({ states: [Status.RUNNING, Status.SUSPENDED] })) {
+  console.log(summary.id, summary.lastObservedStatus);
+}
+```
+
+```python Python
+from tyto import Status
+
+sandbox = client.get_sandbox(SANDBOX_ID)
+for summary in client.list_sandboxes(states=[Status.RUNNING, Status.SUSPENDED]):
+    print(summary.id, summary.last_observed_status.value)
+```
+
+```go Go
+sandbox, err := client.GetSandbox(ctx, sandboxID)
+
+summaries, err := client.ListSandboxes(ctx, tyto.ListOptions{
+    States: []tyto.Status{tyto.StatusRunning, tyto.StatusSuspended},
+})
+for _, summary := range summaries {
+    fmt.Println(summary.ID, summary.LastObservedStatus)
+}
+```
+</CodeGroup>
+
+**MCP:** `sandbox_get` fetches one sandbox; `sandbox_list` pages through all of them.
+
+## Run a command (buffered exec)
+
+One JSON request, one JSON response, no WebSocket. A non-zero exit code is still a `200` — check `exit_code` in the body.
+
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/exec" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"cmd": ["echo", "hello from tyto"]}'
+```
+
+```shell CLI
+tyto exec $SANDBOX_ID -- echo "hello from tyto"
+```
+
+```ts TypeScript
+const result = await sandbox.exec(["echo", "hello from tyto"]);
+console.log(result.stdout, result.exitCode);
+```
+
+```python Python
+result = sandbox.exec(["echo", "hello from tyto"])
+print(result.stdout, result.exit_code)
+```
+
+```go Go
+result, err := sandbox.Exec(ctx, []string{"echo", "hello from tyto"})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(result.Stdout(), result.ExitCode)
+```
+</CodeGroup>
+
+**MCP:** the `sandbox_exec` tool runs a buffered command the same way.
+
+## Stream a command (streaming exec)
+
+Get `Stdout`/`Stderr`/`Exit` events as they arrive, instead of waiting for the whole thing to buffer. There's no REST or CLI equivalent — buffered `exec` and the WebSocket TTY upgrade are the only wire-level modes; streaming is an SDK-level convenience over the latter.
+
+<CodeGroup>
+```ts TypeScript
+import { Exit, Stderr, Stdout } from "@bonya-ai/tyto";
+
+const session = sandbox.execStream(["bash", "-lc", "echo out; echo err >&2"]);
+try {
+  for await (const event of session) {
+    if (event instanceof Stdout) process.stdout.write(Buffer.from(event.data).toString("utf-8"));
+    else if (event instanceof Exit) console.log("exit:", event.exitCode);
+  }
+} finally {
+  session.close();
+}
+```
+
+```python Python
+from tyto import Exit, Stdout
+
+with sandbox.exec_stream(["bash", "-lc", "echo out; echo err >&2"]) as session:
+    for event in session:
+        if isinstance(event, Stdout):
+            print(event.data.decode("utf-8"), end="")
+        elif isinstance(event, Exit):
+            print("exit:", event.exit_code)
+```
+
+```go Go
+session, err := sandbox.ExecStream(ctx, []string{"bash", "-lc", "echo out; echo err >&2"})
+if err != nil {
+    log.Fatal(err)
+}
+defer session.Close()
+
+for {
+    event, err := session.Next()
+    if err != nil || event == nil {
+        break
+    }
+    if stdout, ok := event.(tyto.Stdout); ok {
+        fmt.Print(string(stdout.Data))
+    }
+}
+```
+</CodeGroup>
+
+There's no MCP tool for this — the MCP server's `sandbox_exec` is buffered-only, since streaming output doesn't fit a request/response tool call.
+
+## Managed sessions (create, attach, list, kill)
+
+A named, persistent command that outlives your connection and survives the sandbox suspending and resuming — the counterpart to exec for dev servers and other long-running processes.
+
+<CodeGroup>
+```shell cURL
+# create
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/sessions" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "dev", "cmd": ["npm", "run", "dev"]}'
+
+# list
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/sessions" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+
+# kill
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/sessions/dev/kill" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```shell CLI
+tyto session create $SANDBOX_ID dev -- npm run dev
+tyto session list $SANDBOX_ID
+tyto session attach $SANDBOX_ID dev
+tyto session kill $SANDBOX_ID dev
+```
+
+```ts TypeScript
+const info = await sandbox.createSession("dev", ["npm", "run", "dev"]);
+
+const session = await sandbox.attachSession("dev");
+for await (const event of session) {
+  // ...
+}
+session.detach();
+
+for (const info of await sandbox.listSessions()) {
+  console.log(info.name, info.status);
+}
+
+await sandbox.killSession("dev");
+```
+
+```python Python
+info = sandbox.create_session("dev", ["npm", "run", "dev"])
+
+session = sandbox.attach_session("dev")
+for event in session:
+    ...
+session.detach()
+
+for info in sandbox.list_sessions():
+    print(info.name, info.status)
+
+sandbox.kill_session("dev")
+```
+
+```go Go
+info, err := sandbox.CreateSession(ctx, "dev", []string{"npm", "run", "dev"})
+
+stream, err := sandbox.AttachSession(ctx, "dev")
+for {
+    event, err := stream.Next()
+    if err != nil || event == nil {
+        break
+    }
+}
+stream.Detach()
+
+result, err := sandbox.ListSessions(ctx)
+for _, info := range result.Sessions {
+    fmt.Println(info.Name, info.Status)
+}
+
+sandbox.KillSession(ctx, "dev")
+```
+</CodeGroup>
+
+**MCP:** `session_create`, `session_list`, and `session_kill` cover create/list/kill. Attach is a WebSocket upgrade with no request/response shape, so there's no `session_attach` tool — an agent can start and stop background work but can't stream its live output.
+
+## Files (read/write/upload/download/list)
+
+Read and write bodies over REST are raw bytes — not tar archives or multipart form data — so each call moves exactly one file.
+
+<CodeGroup>
+```shell cURL
+# write
+curl -s -X PUT "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/write?path=/workspace/hello.txt" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @./hello.txt
+
+# read
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/read?path=/workspace/hello.txt" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -o ./hello.downloaded.txt
+
+# list
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/fs/list?path=/workspace" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```shell CLI
+tyto fs upload $SANDBOX_ID ./hello.txt /workspace/hello.txt
+tyto fs download $SANDBOX_ID /workspace/hello.txt ./hello.downloaded.txt
+tyto fs ls $SANDBOX_ID /workspace
+```
+
+```ts TypeScript
+await sandbox.writeFile("/workspace/message.txt", "hello\n");
+const payload = await sandbox.readFile("/workspace/message.txt");
+
+await sandbox.uploadFile("./hello.txt", "/workspace/hello.txt");
+await sandbox.downloadFile("/workspace/hello.txt", "./hello.downloaded.txt");
+
+const entries = await sandbox.listFiles("/workspace");
+```
+
+```python Python
+sandbox.write_file("/workspace/message.txt", "hello\n")
+payload = sandbox.read_file("/workspace/message.txt")
+
+sandbox.upload_file("./hello.txt", "/workspace/hello.txt")
+sandbox.download_file("/workspace/hello.txt", "./hello.downloaded.txt")
+
+entries = sandbox.list_files("/workspace")
+```
+
+```go Go
+sandbox.WriteFile(ctx, "/workspace/message.txt", []byte("hello\n"))
+payload, err := sandbox.ReadFile(ctx, "/workspace/message.txt")
+
+sandbox.UploadFile(ctx, "./hello.txt", "/workspace/hello.txt")
+sandbox.DownloadFile(ctx, "/workspace/input.bin", "./hello.downloaded.txt")
+
+entries, err := sandbox.ListFiles(ctx, "/workspace")
+```
+</CodeGroup>
+
+**MCP:** `fs_read`, `fs_write`, and `fs_list` cover this (plus `fs_stat`, `fs_mkdir`, `fs_rename`, and `fs_delete` for the rest of the filesystem surface) — there's no upload/download tool since MCP tool calls carry inline UTF-8 text, not binary file transfers.
+
+## Preview URLs (create/list/delete)
+
+Publishes one guest port at an HTTPS URL a browser can open. Ports must be 1024–65535.
+
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/previews" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"port": 3000, "name": "web"}'
+
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/previews" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+
+curl -s -X DELETE "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/previews/$PREVIEW_ID" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```shell CLI
+tyto preview create $SANDBOX_ID 3000 --name web
+tyto preview list $SANDBOX_ID
+tyto preview delete $SANDBOX_ID $PREVIEW_ID
+```
+
+```ts TypeScript
+const preview = await sandbox.createPreview(3000, { name: "web" });
+console.log(preview.url);
+
+await sandbox.listPreviews();
+await sandbox.deletePreview(preview.id);
+```
+
+```python Python
+preview = sandbox.create_preview(3000, name="web")
+print(preview.url)
+
+sandbox.list_previews()
+sandbox.delete_preview(preview.id)
+```
+
+```go Go
+preview, err := sandbox.CreatePreview(ctx, 3000, tyto.CreatePreviewOptions{Name: "web"})
+fmt.Println(preview.URL)
+
+previews, err := sandbox.ListPreviews(ctx)
+err = sandbox.DeletePreview(ctx, preview.ID)
+```
+</CodeGroup>
+
+**MCP:** `preview_create`, `preview_list`, and `preview_delete` cover all three — `preview_create`'s result deliberately drops the one-time `capability_jws` token, returning only the token-free `url`.
+
+## Snapshots (create/delete)
+
+Captures a running sandbox's disk state. Snapshots are **not part of the public REST API** — there's no `/v1/sandbox/{sandbox_id}/snapshots` path; this is a gRPC-only capability reached through the SDKs and CLI, so there's no cURL example.
+
+<CodeGroup>
+```shell CLI
+tyto snapshot create $SANDBOX_ID
+tyto snapshot delete $SANDBOX_ID $SNAPSHOT_ID
+```
+
+```ts TypeScript
+const snapshot = await sandbox.snapshot();
+console.log(snapshot.id, snapshot.sourceSandboxId);
+
+await snapshot.delete();
+```
+
+```python Python
+snapshot = sandbox.snapshot()
+print(snapshot.id, snapshot.source_sandbox_id)
+
+snapshot.delete()
+```
+
+```go Go
+snapshot, err := sandbox.Snapshot(ctx)
+fmt.Println(snapshot.ID, snapshot.SourceSandboxID)
+
+snapshot.Delete(ctx)
+```
+</CodeGroup>
+
+There's no MCP tool for snapshots — [MCP tools](/mcp/tools) notes they're managed exclusively through the gRPC SDKs and are out of scope for the MCP server.
+
+## Jobs (run_job/start_job and language equivalents)
+
+A managed run of a command or script on a new or existing sandbox. `run_job`/`RunJob` blocks until it finishes; `start_job`/`StartJob` returns a run id immediately for you to poll later. There's no `tyto job` CLI command — jobs are reached through REST or an SDK.
+
+<CodeGroup>
+```shell cURL
+# run and wait for the result (wait is a body field, not a query param)
+curl -s -X POST "https://api.tyto.run/v1/job" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"new_sandbox": {"template_id": "bonya-dev"}, "cmd": ["./run-tests.sh"], "wait": true}'
+
+# start durably and check later (wait defaults to false)
+curl -s -X POST "https://api.tyto.run/v1/job" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"existing_sandbox_id": "'"$SANDBOX_ID"'", "cmd": ["./long-migration.sh"]}'
+
+curl -s "https://api.tyto.run/v1/job/$RUN_ID" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```ts TypeScript
+const run = await client.runJob({
+  newSandbox: { template: "bonya-dev" },
+  cmd: ["./run-tests.sh"],
+});
+console.log(run.status, run.result?.exitCode);
+
+const { runId } = await client.startJob({
+  existingSandboxId: SANDBOX_ID,
+  cmd: ["./long-migration.sh"],
+});
+const detail = await client.getJobRun(runId);
+```
+
+```python Python
+from tyto import JobSandboxSpec, JobSpec
+
+run = client.run_job(JobSpec(
+    new_sandbox=JobSandboxSpec(template="bonya-dev"),
+    cmd=("./run-tests.sh",),
+))
+print(run.status, run.result.exit_code)
+
+run_id, already_running = client.start_job(JobSpec(
+    existing_sandbox_id=SANDBOX_ID,
+    cmd=("./long-migration.sh",),
+))
+detail = client.get_job_run(run_id)
+```
+
+```go Go
+run, err := client.RunJob(ctx, tyto.JobSpec{
+    NewSandbox: &tyto.JobSandboxSpec{Template: "bonya-dev"},
+    Cmd:        []string{"./run-tests.sh"},
+})
+fmt.Println(run.Status, run.Result.ExitCode)
+
+runID, alreadyRunning, err := client.StartJob(ctx, tyto.JobSpec{
+    ExistingSandboxID: sandboxID,
+    Cmd:               []string{"./long-migration.sh"},
+})
+detail, err := client.GetJobRun(ctx, runID)
+```
+</CodeGroup>
+
+**MCP:** `job_create` covers both modes — pass `wait: true` to block for the result or leave it `false` to get a `run_id` back immediately, and use `job_get`/`job_list`/`job_cancel` from there.
+
+## Job schedules (create/list/trigger)
+
+Wraps a job spec with timing — cron, an interval, or a one-shot future time — so it runs without you calling the job endpoint yourself. There's no `tyto job-schedule` CLI command.
+
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/job-schedule" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"interval_s": 3600, "job": {"new_sandbox": {"template_id": "bonya-dev"}, "cmd": ["./nightly-report.sh"]}}'
+
+curl -s "https://api.tyto.run/v1/job-schedule" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+
+curl -s -X POST "https://api.tyto.run/v1/job-schedule/$SCHEDULE_ID/trigger" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```ts TypeScript
+const schedule = await client.createJobSchedule(
+  { intervalSeconds: 3600 },
+  { newSandbox: { template: "bonya-dev" }, cmd: ["./nightly-report.sh"] },
+);
+console.log(schedule.scheduleId, schedule.nextRunAtUnixNanos);
+
+for await (const s of client.listJobSchedules()) {
+  console.log(s.scheduleId);
+}
+await client.triggerJobSchedule(schedule.scheduleId);
+```
+
+```python Python
+from tyto import ScheduleSpec
+
+schedule = client.create_job_schedule(
+    ScheduleSpec(interval_seconds=3600),
+    JobSpec(new_sandbox=JobSandboxSpec(template="bonya-dev"), cmd=("./nightly-report.sh",)),
+)
+print(schedule.schedule_id, schedule.next_run_at_unix_nanos)
+
+schedules = client.list_job_schedules()
+client.trigger_job_schedule(schedule.schedule_id)
+```
+
+```go Go
+schedule, err := client.CreateJobSchedule(ctx,
+    tyto.ScheduleSpec{IntervalSeconds: 3600},
+    tyto.JobSpec{NewSandbox: &tyto.JobSandboxSpec{Template: "bonya-dev"}, Cmd: []string{"./nightly-report.sh"}},
+)
+fmt.Println(schedule.ScheduleID, schedule.NextRunAtUnixNanos)
+
+schedules, err := client.ListJobSchedules(ctx)
+err = client.TriggerJobSchedule(ctx, schedule.ScheduleID)
+```
+</CodeGroup>
+
+**MCP:** `job_schedule_create`, `job_schedule_list`, and `job_schedule_trigger` cover this (plus `job_schedule_get`, `_update`, `_pause`, and `_delete` for the rest of the surface).
+
+## Templates (list templates)
+
+Lists every `template_id`/version a create or job call will accept, with metadata like OS and preinstalled language stacks. Not paginated — the catalog is the same for every caller. There's no `tyto template` CLI command; `tyto create` offers the catalog interactively instead.
+
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/templates" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```ts TypeScript
+const templates = await client.listTemplates();
+for (const template of templates) {
+  console.log(template.id, template.version, template.isDefault, template.metadata.os);
+}
+```
+
+```python Python
+templates = client.list_templates()
+for template in templates:
+    print(template.id, template.version, template.is_default, template.metadata.os)
+```
+
+```go Go
+templates, err := client.ListTemplates(ctx)
+for _, template := range templates {
+    fmt.Println(template.ID, template.Version, template.IsDefault, template.Metadata.OS)
+}
+```
+</CodeGroup>
+
+**MCP:** the `template_list` tool exposes the same catalog.
+
+## Delete/cleanup a sandbox
+
+Deletion is a synchronous teardown — the call doesn't return until the sandbox is gone. It's idempotent: deleting an already-deleted sandbox succeeds rather than erroring.
+
+<CodeGroup>
+```shell cURL
+curl -s -X DELETE "https://api.tyto.run/v1/sandbox/$SANDBOX_ID" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
+```
+
+```shell CLI
+tyto delete $SANDBOX_ID
+```
+
+```ts TypeScript
+await sandbox.delete();
+```
+
+```python Python
+sandbox.delete()
+```
+
+```go Go
+sandbox.Delete(ctx)
+```
+</CodeGroup>
+
+**MCP:** the `sandbox_delete` tool tears down a sandbox the same way, and is likewise idempotent.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="CLI Reference" icon="terminal" href="/cli-reference/overview" />
+  <Card title="TypeScript SDK" icon="code" href="/sdks/typescript/usage" />
+  <Card title="Python SDK" icon="code" href="/sdks/python/usage" />
+  <Card title="Go SDK" icon="code" href="/sdks/go/usage" />
+  <Card title="MCP Server" icon="plug" href="/mcp/tools" />
+</CardGroup>
