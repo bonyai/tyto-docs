@@ -13,10 +13,38 @@ info:
 security:
   - personalApiKey: []
   - supabaseJwt: []
+tags:
+  - name: Sandboxes
+    description: Create, look up, list, resume, and delete sandboxes.
+  - name: Templates
+    description: The deployment's template catalog.
+  - name: Previews
+    description: Expose a sandbox port as an HTTPS URL.
+  - name: Exec
+    description: Run a command in a sandbox, buffered or over a TTY.
+  - name: Sessions
+    description: Named, persistent command sessions that outlive a connection.
+  - name: Filesystem
+    description: Read, write, and manage files inside a sandbox.
+  - name: Jobs
+    description: Managed, tracked runs of a command or script.
+  - name: Job Schedules
+    description: Cron, interval, or one-shot timing wrapped around a job.
+  - name: Organizations
+    description: Organization membership and administration.
+  - name: Invitations
+    description: Invite members to an organization and accept invitations.
+  - name: Billing
+    description: Usage, credit balance, top-ups, coupons, invoices, and payments.
+  - name: API Keys
+    description: Personal API key management.
+  - name: Device Login
+    description: Browser-based login for the CLI.
 paths:
   /v1/sandbox:
     get:
       operationId: listSandboxes
+      tags: [Sandboxes]
       summary: List sandboxes
       description: >-
         Paginated with page_size/page_token, optionally filtered by states or
@@ -51,6 +79,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     post:
       operationId: createSandbox
+      tags: [Sandboxes]
       summary: Create a sandbox
       description: >-
         Returns 202 Accepted immediately by default; pass ?wait=ready to
@@ -87,6 +116,7 @@ paths:
   /v1/templates:
     get:
       operationId: listTemplates
+      tags: [Templates]
       summary: List templates
       description: >
         The deployment's immutable template catalog: every template_id and
@@ -112,6 +142,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     get:
       operationId: getSandbox
+      tags: [Sandboxes]
       summary: Get a sandbox
       responses:
         '200':
@@ -125,6 +156,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     delete:
       operationId: deleteSandbox
+      tags: [Sandboxes]
       summary: Delete a sandbox
       description: >-
         Synchronous teardown. Repeating a delete on an already-deleted
@@ -136,6 +168,7 @@ paths:
   /v1/sandbox/{sandbox_id}/resume:
     post:
       operationId: resumeSandbox
+      tags: [Sandboxes]
       summary: Resume a sandbox
       description: >-
         Synchronously resumes a suspended sandbox. If it was already running,
@@ -156,6 +189,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     get:
       operationId: listPreviews
+      tags: [Previews]
       summary: List preview URLs
       description: List preview URLs for a sandbox. Never returns capabilities.
       responses:
@@ -167,6 +201,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     post:
       operationId: createPreview
+      tags: [Previews]
       summary: Create a preview URL
       description: Returns a token-free URL plus a one-time capability.
       parameters:
@@ -186,6 +221,7 @@ paths:
   /v1/sandbox/{sandbox_id}/previews/{preview_id}:
     delete:
       operationId: deletePreview
+      tags: [Previews]
       summary: Delete a preview URL
       description: >-
         Idempotent, and deliberately avoids leaking cross-org existence: a
@@ -204,6 +240,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     post:
       operationId: execDirect
+      tags: [Exec]
       summary: Run a command (buffered)
       description: Synchronous, non-TTY exec — JSON body in, JSON body out.
       requestBody:
@@ -220,6 +257,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     get:
       operationId: execTTY
+      tags: [Exec]
       summary: Run a command (TTY)
       description: >-
         A transient, interactive TTY session over a WebSocket upgrade. The
@@ -233,6 +271,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     get:
       operationId: listSessions
+      tags: [Sessions]
       summary: List sessions
       description: >-
         Never wakes a suspended sandbox — it answers from the suspend-time
@@ -246,6 +285,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     post:
       operationId: createSession
+      tags: [Sessions]
       summary: Create a session
       description: >-
         Keyed by name. Creating over a live session returns 409
@@ -266,6 +306,7 @@ paths:
   /v1/sandbox/{sandbox_id}/sessions/{session_name}/attach:
     get:
       operationId: attachSession
+      tags: [Sessions]
       summary: Attach to a session
       description: >-
         A WebSocket upgrade. The START frame carries an AttachStartRequest.
@@ -279,6 +320,7 @@ paths:
   /v1/sandbox/{sandbox_id}/sessions/{session_name}/kill:
     post:
       operationId: killSession
+      tags: [Sessions]
       summary: Kill a session
       parameters:
         - $ref: '#/components/parameters/SandboxID'
@@ -299,6 +341,7 @@ paths:
   /v1/sandbox/{sandbox_id}/fs/read:
     get:
       operationId: fsRead
+      tags: [Filesystem]
       summary: Read a file
       description: Returns the raw file contents as application/octet-stream.
       parameters:
@@ -314,6 +357,7 @@ paths:
   /v1/sandbox/{sandbox_id}/fs/write:
     put:
       operationId: fsWrite
+      tags: [Filesystem]
       summary: Write a file
       description: The request body is the raw file contents as application/octet-stream.
       parameters:
@@ -330,6 +374,7 @@ paths:
   /v1/sandbox/{sandbox_id}/fs/list:
     get:
       operationId: fsList
+      tags: [Filesystem]
       summary: List a directory
       parameters:
         - $ref: '#/components/parameters/SandboxID'
@@ -345,6 +390,7 @@ paths:
   /v1/sandbox/{sandbox_id}/fs/stat:
     get:
       operationId: fsStat
+      tags: [Filesystem]
       summary: Get file metadata
       parameters:
         - $ref: '#/components/parameters/SandboxID'
@@ -360,6 +406,7 @@ paths:
   /v1/sandbox/{sandbox_id}/fs/mkdir:
     post:
       operationId: fsMkdir
+      tags: [Filesystem]
       summary: Create a directory
       parameters:
         - $ref: '#/components/parameters/SandboxID'
@@ -375,6 +422,7 @@ paths:
   /v1/sandbox/{sandbox_id}/fs/rename:
     post:
       operationId: fsRename
+      tags: [Filesystem]
       summary: Rename or move a file
       parameters:
         - $ref: '#/components/parameters/SandboxID'
@@ -390,6 +438,7 @@ paths:
   /v1/sandbox/{sandbox_id}/fs:
     delete:
       operationId: fsDelete
+      tags: [Filesystem]
       summary: Delete a file or directory
       parameters:
         - $ref: '#/components/parameters/SandboxID'
@@ -409,6 +458,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     post:
       operationId: createJob
+      tags: [Jobs]
       summary: Create a job
       description: >-
         Run or start a job on a new or existing sandbox. wait=false (default)
@@ -439,6 +489,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     get:
       operationId: listJobRuns
+      tags: [Jobs]
       summary: List job runs
       description: >-
         A tenant's runs, newest first, optionally filtered to sandbox_id or
@@ -469,6 +520,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     get:
       operationId: getJobRun
+      tags: [Jobs]
       summary: Get a job run
       description: >-
         Full run detail, including the stored spec that started it and an
@@ -487,6 +539,7 @@ paths:
   /v1/job/{run_id}/cancel:
     post:
       operationId: cancelJobRun
+      tags: [Jobs]
       summary: Cancel a job run
       description: >-
         Requests cancellation rather than forcibly terminating, so the run's
@@ -506,6 +559,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     post:
       operationId: createJobSchedule
+      tags: [Job Schedules]
       summary: Create a job schedule
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -526,6 +580,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     get:
       operationId: listJobSchedules
+      tags: [Job Schedules]
       summary: List job schedules
       parameters:
         - name: page_size
@@ -547,6 +602,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationHeader'
     get:
       operationId: getJobSchedule
+      tags: [Job Schedules]
       summary: Get a job schedule
       responses:
         '200':
@@ -560,6 +616,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     patch:
       operationId: updateJobSchedule
+      tags: [Job Schedules]
       summary: Update a job schedule
       requestBody:
         required: true
@@ -578,6 +635,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     delete:
       operationId: deleteJobSchedule
+      tags: [Job Schedules]
       summary: Delete a job schedule
       responses:
         '204': { description: Deleted }
@@ -585,6 +643,7 @@ paths:
   /v1/job-schedule/{schedule_id}/pause:
     post:
       operationId: setJobSchedulePaused
+      tags: [Job Schedules]
       summary: Pause or resume a job schedule
       parameters:
         - $ref: '#/components/parameters/ScheduleID'
@@ -612,6 +671,7 @@ paths:
   /v1/job-schedule/{schedule_id}/trigger:
     post:
       operationId: triggerJobSchedule
+      tags: [Job Schedules]
       summary: Trigger a job schedule
       description: Fires one run immediately, overriding the schedule's own timing.
       parameters:
@@ -635,6 +695,7 @@ paths:
   /v1/organizations:
     get:
       operationId: listOrganizations
+      tags: [Organizations]
       security:
         - supabaseJwt: []
       summary: List organizations
@@ -656,6 +717,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     post:
       operationId: createOrganization
+      tags: [Organizations]
       security:
         - supabaseJwt: []
       summary: Create an organization
@@ -683,6 +745,7 @@ paths:
       - $ref: '#/components/parameters/OrganizationID'
     get:
       operationId: getOrganization
+      tags: [Organizations]
       security:
         - supabaseJwt: []
       summary: Get an organization
@@ -700,6 +763,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     patch:
       operationId: updateOrganization
+      tags: [Organizations]
       security:
         - supabaseJwt: []
       summary: Rename an organization
@@ -723,6 +787,7 @@ paths:
   /v1/organizations/{organization_id}/members:
     get:
       operationId: listMembers
+      tags: [Organizations]
       security:
         - supabaseJwt: []
       summary: List members
@@ -751,6 +816,7 @@ paths:
         schema: { type: string }
     patch:
       operationId: updateMember
+      tags: [Organizations]
       security:
         - supabaseJwt: []
       summary: Update a member's role
@@ -777,6 +843,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     delete:
       operationId: removeMember
+      tags: [Organizations]
       security:
         - supabaseJwt: []
       summary: Remove a member
@@ -796,6 +863,7 @@ paths:
     get:
       operationId: listInvites
       x-internal: true
+      tags: [Invitations]
       security:
         - supabaseJwt: []
       summary: List invitations
@@ -818,6 +886,7 @@ paths:
     post:
       operationId: createInvite
       x-internal: true
+      tags: [Invitations]
       security:
         - supabaseJwt: []
       summary: Create an invitation
@@ -858,6 +927,7 @@ paths:
     delete:
       operationId: revokeInvite
       x-internal: true
+      tags: [Invitations]
       security:
         - supabaseJwt: []
       summary: Revoke an invitation
@@ -881,6 +951,7 @@ paths:
   /v1/organizations/{organization_id}/usage:
     get:
       operationId: getOrganizationUsage
+      tags: [Billing]
       security:
         - supabaseJwt: []
       summary: Get usage and credit balance
@@ -900,6 +971,7 @@ paths:
   /v1/organizations/{organization_id}/topup-offers:
     get:
       operationId: listOrganizationTopUpOffers
+      tags: [Billing]
       security:
         - supabaseJwt: []
       summary: List top-up offers
@@ -924,6 +996,7 @@ paths:
   /v1/organizations/{organization_id}/topup-purchases:
     post:
       operationId: startOrganizationTopUpPurchase
+      tags: [Billing]
       security:
         - supabaseJwt: []
       summary: Start a top-up purchase
@@ -964,6 +1037,7 @@ paths:
   /v1/organizations/{organization_id}/coupons:
     get:
       operationId: listOrganizationCoupons
+      tags: [Billing]
       security:
         - supabaseJwt: []
       summary: List coupons
@@ -985,6 +1059,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     post:
       operationId: applyOrganizationCoupon
+      tags: [Billing]
       security:
         - supabaseJwt: []
       summary: Apply a coupon
@@ -1016,6 +1091,7 @@ paths:
   /v1/organizations/{organization_id}/invoices:
     get:
       operationId: listOrganizationInvoices
+      tags: [Billing]
       security:
         - supabaseJwt: []
       summary: List invoices
@@ -1049,6 +1125,7 @@ paths:
   /v1/organizations/{organization_id}/invoices/{invoice_id}:
     get:
       operationId: getOrganizationInvoice
+      tags: [Billing]
       security:
         - supabaseJwt: []
       summary: Get an invoice
@@ -1076,6 +1153,7 @@ paths:
   /v1/organizations/{organization_id}/billing:
     get:
       operationId: getOrganizationBilling
+      tags: [Billing]
       security:
         - supabaseJwt: []
       summary: Get a billing overview
@@ -1099,6 +1177,7 @@ paths:
   /v1/organizations/{organization_id}/usage/breakdown:
     get:
       operationId: getOrganizationUsageBreakdown
+      tags: [Billing]
       security:
         - supabaseJwt: []
       summary: Get a usage breakdown
@@ -1127,6 +1206,7 @@ paths:
   /v1/organizations/{organization_id}/usage/series:
     get:
       operationId: getOrganizationUsageSeries
+      tags: [Billing]
       security:
         - supabaseJwt: []
       summary: Get a usage time series
@@ -1158,6 +1238,7 @@ paths:
   /v1/organizations/{organization_id}/payments:
     get:
       operationId: listOrganizationPayments
+      tags: [Billing]
       security:
         - supabaseJwt: []
       summary: List payments
@@ -1187,6 +1268,7 @@ paths:
     post:
       operationId: acceptInvitation
       x-internal: true
+      tags: [Invitations]
       security:
         - supabaseJwt: []
       summary: Accept an invitation
@@ -1223,6 +1305,7 @@ paths:
   /v1/api-keys:
     get:
       operationId: listApiKeys
+      tags: [API Keys]
       security:
         - supabaseJwt: []
       summary: List API keys
@@ -1237,6 +1320,7 @@ paths:
         default: { $ref: '#/components/responses/Problem' }
     post:
       operationId: createApiKey
+      tags: [API Keys]
       security:
         - supabaseJwt: []
       summary: Create an API key
@@ -1258,6 +1342,7 @@ paths:
   /v1/api-keys/{key_id}:
     delete:
       operationId: revokeApiKey
+      tags: [API Keys]
       security:
         - supabaseJwt: []
       summary: Revoke an API key
@@ -1279,6 +1364,7 @@ paths:
   /v1/device-login:
     post:
       operationId: mintDeviceLogin
+      tags: [Device Login]
       security: []
       summary: Start a device login
       description: >
@@ -1294,6 +1380,7 @@ paths:
   /v1/device-login/approve:
     post:
       operationId: approveDeviceLogin
+      tags: [Device Login]
       security:
         - supabaseJwt: []
       summary: Approve a device login
@@ -1311,6 +1398,7 @@ paths:
   /v1/device-login/poll:
     post:
       operationId: pollDeviceLogin
+      tags: [Device Login]
       security: []
       summary: Poll a device login
       description: >
