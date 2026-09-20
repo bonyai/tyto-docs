@@ -3,7 +3,7 @@ title: Examples
 description: Every core operation, side by side across cURL, the CLI, and every SDK
 ---
 
-This page is a side-by-side comparison, not a full reference — for every parameter, flag, and field, see the [CLI Reference](/cli-reference/overview), the [TypeScript](/sdks/typescript/usage), [Python](/sdks/python/usage), and [Go](/sdks/go/usage) SDK usage pages, and [MCP tools](/mcp/tools). Every example uses the `bonya-dev` template and a `$SANDBOX_ID` set from a prior create call, the same conventions as the [Quickstart](/quickstart).
+This page is a side-by-side comparison, not a full reference — for every parameter, flag, and field, see the [CLI Reference](/cli-reference/overview), the [TypeScript](/sdks/typescript/usage), [Python](/sdks/python/usage), and [Go](/sdks/go/usage) SDK usage pages, and [MCP tools](/mcp/tools). Every example uses the `bonya-dev` template and `$SANDBOX_ID`/`$RUN_ID`/`$SCHEDULE_ID`/`$PREVIEW_ID`/`$SNAPSHOT_ID` set from a prior call's response, the same conventions as the [Quickstart](/quickstart).
 
 ## Create a sandbox
 
@@ -63,7 +63,7 @@ Reconnect to a sandbox by id, or page through every sandbox in the organization,
 curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID" \
   -H "Authorization: Bearer $BONYA_API_KEY"
 
-curl -s "https://api.tyto.run/v1/sandbox?states=running&states=suspended" \
+curl -s "https://api.tyto.run/v1/sandbox?states=RUNNING&states=SUSPENDED" \
   -H "Authorization: Bearer $BONYA_API_KEY"
 ```
 
@@ -325,7 +325,7 @@ sandbox.WriteFile(ctx, "/workspace/message.txt", []byte("hello\n"))
 payload, err := sandbox.ReadFile(ctx, "/workspace/message.txt")
 
 sandbox.UploadFile(ctx, "./hello.txt", "/workspace/hello.txt")
-sandbox.DownloadFile(ctx, "/workspace/input.bin", "./hello.downloaded.txt")
+sandbox.DownloadFile(ctx, "/workspace/hello.txt", "./hello.downloaded.txt")
 
 entries, err := sandbox.ListFiles(ctx, "/workspace")
 ```
@@ -519,7 +519,7 @@ await client.triggerJobSchedule(schedule.scheduleId);
 ```
 
 ```python Python
-from tyto import ScheduleSpec
+from tyto import JobSandboxSpec, JobSpec, ScheduleSpec
 
 schedule = client.create_job_schedule(
     ScheduleSpec(interval_seconds=3600),

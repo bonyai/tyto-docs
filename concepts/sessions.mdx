@@ -15,9 +15,32 @@ A session is scoped to a `sandbox_id` and keyed by `session_name`, which must ma
 
 ## Creating a session
 
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/sessions" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "dev", "cmd": ["npm", "run", "dev"]}'
 ```
-POST /v1/sandbox/{sandbox_id}/sessions
+
+```shell CLI
+tyto session create $SANDBOX_ID dev -- npm run dev
 ```
+
+```ts TypeScript
+const info = await sandbox.createSession("dev", ["npm", "run", "dev"]);
+```
+
+```python Python
+info = sandbox.create_session("dev", ["npm", "run", "dev"])
+```
+
+```go Go
+info, err := sandbox.CreateSession(ctx, "dev", []string{"npm", "run", "dev"})
+```
+</CodeGroup>
+
+**MCP:** the `session_create` tool covers this.
 
 The request body extends the common command shape (`cmd`, `env`, `path`) with session-specific fields:
 
@@ -93,9 +116,36 @@ Attaching to a session on a suspended sandbox wakes it, the same way exec traffi
 
 ## Listing sessions
 
+<CodeGroup>
+```shell cURL
+curl -s "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/sessions" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
 ```
-GET /v1/sandbox/{sandbox_id}/sessions
+
+```shell CLI
+tyto session list $SANDBOX_ID
 ```
+
+```ts TypeScript
+for (const info of await sandbox.listSessions()) {
+  console.log(info.name, info.status);
+}
+```
+
+```python Python
+for info in sandbox.list_sessions():
+    print(info.name, info.status)
+```
+
+```go Go
+result, err := sandbox.ListSessions(ctx)
+for _, info := range result.Sessions {
+    fmt.Println(info.Name, info.Status)
+}
+```
+</CodeGroup>
+
+**MCP:** the `session_list` tool covers this.
 
 Returns `SessionListResponse`:
 
@@ -118,11 +168,68 @@ GET /v1/sandbox/{sandbox_id}/sessions/{session_name}/attach
 
 This is a WebSocket upgrade — see [WebSockets](/concepts/websockets) for how the upgrade, the START frame (`AttachStartRequest`), and admission work. Multiple clients can attach to the same session.
 
+<CodeGroup>
+```shell CLI
+tyto session attach $SANDBOX_ID dev
+```
+
+```ts TypeScript
+const session = await sandbox.attachSession("dev");
+for await (const event of session) {
+  // ...
+}
+session.detach();
+```
+
+```python Python
+session = sandbox.attach_session("dev")
+for event in session:
+    ...
+session.detach()
+```
+
+```go Go
+stream, err := sandbox.AttachSession(ctx, "dev")
+for {
+    event, err := stream.Next()
+    if err != nil || event == nil {
+        break
+    }
+}
+stream.Detach()
+```
+</CodeGroup>
+
+There's no cURL tab here since this operation has no JSON request/response shape to show — it's a raw WebSocket upgrade, not a request/response call. For the same reason, there's no `session_attach` MCP tool: an agent can start and stop background work via `session_create`/`session_kill` but can't stream its live output.
+
 ## Killing a session
 
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/sessions/dev/kill" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"signal": "TERM", "grace_ms": 5000}'
 ```
-POST /v1/sandbox/{sandbox_id}/sessions/{session_name}/kill
+
+```shell CLI
+tyto session kill $SANDBOX_ID dev
 ```
+
+```ts TypeScript
+await sandbox.killSession("dev");
+```
+
+```python Python
+sandbox.kill_session("dev")
+```
+
+```go Go
+sandbox.KillSession(ctx, "dev")
+```
+</CodeGroup>
+
+**MCP:** the `session_kill` tool covers this, with `signal` and `grace_ms` fields matching the REST body.
 
 Request body (`SessionKillRequest`, optional):
 

@@ -32,9 +32,29 @@ A sandbox's `state` is one of:
 
 Suspension is **automatic** — there is no endpoint to request it. The only lifecycle transition you invoke explicitly is resume:
 
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox/$SANDBOX_ID/resume" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
 ```
-POST /v1/sandbox/{sandbox_id}/resume
+
+```ts TypeScript
+const resume = await sandbox.resume({ idempotencyKey: "resume-job-123" });
+console.log(resume.sandboxId, resume.lifecycleOperationId, resume.alreadyRunning);
 ```
+
+```python Python
+resume = sandbox.resume(idempotency_key="resume-job-123")
+print(resume.sandbox_id, resume.lifecycle_operation_id, resume.already_running)
+```
+
+```go Go
+resume, err := sandbox.Resume(ctx, tyto.ResumeOptions{IdempotencyKey: "resume-job-123"})
+fmt.Println(resume.SandboxID, resume.LifecycleOperationID, resume.AlreadyRunning)
+```
+</CodeGroup>
+
+There's no `tyto resume` CLI command — the CLI only resumes implicitly (for example, `tyto console` resumes a suspended sandbox before attaching). **MCP:** the `sandbox_resume` tool exposes this explicit resume.
 
 This synchronously resumes a suspended sandbox back to `RUNNING`. The response is a `SandboxResume` object with `sandbox_id` and `already_running`: if the sandbox was already running, the call is a no-op and `already_running` is `true`, but it still returns `200`.
 
@@ -44,9 +64,50 @@ There is no start, stop, wake, fork, or restore endpoint. Resume is the only exp
 
 ## Creating a sandbox
 
+<CodeGroup>
+```shell cURL
+curl -s -X POST "https://api.tyto.run/v1/sandbox?wait=ready" \
+  -H "Authorization: Bearer $BONYA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"template_id": "bonya-dev"}'
 ```
-POST /v1/sandbox
+
+```shell CLI
+tyto create --template bonya-dev
 ```
+
+```ts TypeScript
+import { Tyto } from "@bonya-ai/tyto";
+
+const client = new Tyto();
+const sandbox = await client.createSandbox({ template: "bonya-dev" });
+console.log(sandbox.id);
+```
+
+```python Python
+from tyto import Tyto
+
+with Tyto() as client:
+    sandbox = client.create_sandbox(template="bonya-dev")
+    print(sandbox.id)
+```
+
+```go Go
+client, err := tyto.NewClient()
+if err != nil {
+    log.Fatal(err)
+}
+defer client.Close()
+
+sandbox, err := client.CreateSandbox(ctx, "bonya-dev")
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(sandbox.ID)
+```
+</CodeGroup>
+
+**MCP:** the `sandbox_create` tool exposes this to any connected agent.
 
 The request body (`SandboxCreate`) can omit `template_id` when the deployment
 has a configured default template. Otherwise, `template_id` is required.
@@ -57,6 +118,10 @@ Optional fields:
 - `network` — a `NetworkPolicy` controlling egress (see below).
 
 By default, create returns **202 Accepted** with the sandbox in `CREATING` (or whatever state it's already reached) — it does not wait for the sandbox to be ready. Pass `?wait=ready` to block until the sandbox reaches a ready state, in which case the same call returns **201 Created** instead. Both responses share the same body shape: `{ "sandbox": { ...Sandbox } }`.
+
+<Note>
+The REST default is non-blocking, but every SDK's `createSandbox`/`create_sandbox`/`CreateSandbox` defaults the other way — to `Wait.READY`/blocking — matching the CLI's own `--wait ready` default. Pass `wait: "none"` (or the SDK's `Wait.NONE` equivalent) explicitly to get the REST default's immediate return instead.
+</Note>
 
 Create also accepts an `Idempotency-Key` header — see [Idempotency](/concepts/idempotency) for exactly what that does and doesn't protect against.
 
@@ -79,9 +144,30 @@ The response (`SandboxPage`) is `{ "sandboxes": [...], "next_page_token": "..." 
 
 ## Deleting a sandbox
 
+<CodeGroup>
+```shell cURL
+curl -s -X DELETE "https://api.tyto.run/v1/sandbox/$SANDBOX_ID" \
+  -H "Authorization: Bearer $BONYA_API_KEY"
 ```
-DELETE /v1/sandbox/{sandbox_id}
+
+```shell CLI
+tyto delete $SANDBOX_ID
 ```
+
+```ts TypeScript
+await sandbox.delete();
+```
+
+```python Python
+sandbox.delete()
+```
+
+```go Go
+sandbox.Delete(ctx)
+```
+</CodeGroup>
+
+**MCP:** the `sandbox_delete` tool tears down a sandbox the same way, and is likewise idempotent.
 
 Deletion is a **synchronous teardown** — it doesn't return until the sandbox is gone. Deleting an already-deleted (tombstoned) sandbox again returns `204`, the same as the first successful delete. An unknown `sandbox_id`, or one that belongs to a different organization than the caller's context, returns `404`.
 
