@@ -119,6 +119,10 @@ Optional fields:
 
 By default, create returns **202 Accepted** with the sandbox in `CREATING` (or whatever state it's already reached) — it does not wait for the sandbox to be ready. Pass `?wait=ready` to block until the sandbox reaches a ready state, in which case the same call returns **201 Created** instead. Both responses share the same body shape: `{ "sandbox": { ...Sandbox } }`.
 
+<Note>
+The REST default is non-blocking, but every SDK's `createSandbox`/`create_sandbox`/`CreateSandbox` defaults the other way — to `Wait.READY`/blocking — matching the CLI's own `--wait ready` default. Pass `wait: "none"` (or the SDK's `Wait.NONE` equivalent) explicitly to get the REST default's immediate return instead.
+</Note>
+
 Create also accepts an `Idempotency-Key` header — see [Idempotency](/concepts/idempotency) for exactly what that does and doesn't protect against.
 
 ## Getting and listing sandboxes

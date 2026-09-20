@@ -11,6 +11,8 @@ A job is not a replacement for [exec](/concepts/exec) or [managed sessions](/con
 
 ## Creating a job
 
+`POST /v1/job` either blocks for the result or starts durably and returns immediately, controlled by the `wait` body field (default `false`).
+
 <CodeGroup>
 ```shell cURL
 # run and wait for the result (wait is a body field, not a query param)
@@ -199,7 +201,7 @@ console.log(schedule.scheduleId, schedule.nextRunAtUnixNanos);
 ```
 
 ```python Python
-from tyto import ScheduleSpec
+from tyto import JobSandboxSpec, JobSpec, ScheduleSpec
 
 schedule = client.create_job_schedule(
     ScheduleSpec(interval_seconds=3600),
