@@ -49,37 +49,23 @@ claude mcp add tyto -s user --env BONYA_API_KEY=your_key_here -- tyto-mcp
 
 ### Claude Desktop
 
-Claude Desktop has no CLI shortcut — edit its config file directly, then fully quit and reopen the app (not just close the window).
+Claude Desktop has no CLI shortcut — edit its config file directly, then fully quit and reopen the app (not just close the window). Open the file from Claude Desktop itself: the **Claude** menu (macOS menu bar, not an in-window menu) → **Settings** → **Developer** tab → **Edit Config**. The file lives at `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
 
-<CodeGroup>
-```json macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
+```json
 {
   "mcpServers": {
     "tyto": {
       "command": "tyto-mcp",
       "env": {
-        "BONYA_API_KEY": "your_key_here"
+        "BONYA_API_KEY": "your_key_here",
+        "BONYA_ORGANIZATION_ID": "your_org_id"
       }
     }
   }
 }
 ```
 
-```json Windows: %APPDATA%\Claude\claude_desktop_config.json
-{
-  "mcpServers": {
-    "tyto": {
-      "command": "tyto-mcp",
-      "env": {
-        "BONYA_API_KEY": "your_key_here"
-      }
-    }
-  }
-}
-```
-</CodeGroup>
-
-Open the file from Claude Desktop itself: the **Claude** menu (macOS menu bar, not an in-window menu) → **Settings** → **Developer** tab → **Edit Config**. If Claude Desktop reports it can't find `tyto-mcp`, it's usually a `PATH` problem — GUI apps on macOS don't always see the same `PATH` your terminal does, so a global install (`npm install -g @bonya-ai/tyto-mcp`) is the more reliable option there. Per-server logs live at `~/Library/Logs/Claude/mcp-server-tyto.log` (macOS) or `%APPDATA%\Claude\logs` (Windows) if a server fails to start.
+If Claude Desktop reports it can't find `tyto-mcp`, it's usually a `PATH` problem — GUI apps on macOS don't always see the same `PATH` your terminal does, so a global install (`npm install -g @bonya-ai/tyto-mcp`) is the more reliable option there. Per-server logs live at `~/Library/Logs/Claude/mcp-server-tyto.log` (macOS) or `%APPDATA%\Claude\logs` (Windows) if a server fails to start.
 
 ### Codex
 
@@ -89,7 +75,7 @@ codex mcp add tyto --env BONYA_API_KEY=your_key_here -- tyto-mcp
 
 This writes to `~/.codex/config.toml`, which you can also edit directly:
 
-```toml ~/.codex/config.toml
+```toml
 [mcp_servers.tyto]
 command = "tyto-mcp"
 

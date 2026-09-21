@@ -13,22 +13,22 @@ export const TerminalOutput = ({ lines }) => (
       overflowX: "auto",
     }}
   >
-    {lines.map((line, i) => (
-      <div key={i}>
-        {typeof line === "string"
-          ? line || " "
-          : line.map((seg, j) => (
-              <span
-                key={j}
-                style={{
-                  color: seg.color || undefined,
-                  fontWeight: seg.bold ? 600 : undefined,
-                }}
-              >
+    {lines.map((line, i) => {
+      const segments = line === "" ? [{ text: " " }] : line;
+      return (
+        <div key={i}>
+          {segments.map((seg, j) => {
+            const style = {};
+            if (seg.color) style.color = seg.color;
+            if (seg.bold) style.fontWeight = 600;
+            return (
+              <span key={j} style={style}>
                 {seg.text}
               </span>
-            ))}
-      </div>
-    ))}
+            );
+          })}
+        </div>
+      );
+    })}
   </div>
 );
