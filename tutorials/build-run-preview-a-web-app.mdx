@@ -3,6 +3,8 @@ title: Build, run, and preview a web app
 description: Get a small web app running inside a sandbox and reachable at a public preview URL, entirely from the CLI
 ---
 
+import { TerminalOutput } from "/snippets/terminal-output.jsx";
+
 Get a small web app running inside a sandbox and reachable at a public preview URL — entirely from the `tyto` CLI. Every command below uses the `bonya-dev` template. If you haven't installed the CLI or logged in yet, start with the [Quickstart](/quickstart).
 
 <Steps>
@@ -11,18 +13,18 @@ Get a small web app running inside a sandbox and reachable at a public preview U
     tyto create web --template bonya-dev
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#626262"}}>ID       </span>  sbx-c8468508edb87f2a96cd85c31171c47d
-    <span style={{color: "#626262"}}>NAME     </span>  web
-    <span style={{color: "#626262"}}>STATUS   </span>  <span style={{color: "#5fd787"}}>running</span>
-    <span style={{color: "#626262"}}>TEMPLATE </span>  bonya-dev
-    <span style={{color: "#626262"}}>VERSION  </span>  2
-    <span style={{color: "#626262"}}>OPERATION</span>  <span style={{color: "#626262"}}>op-9b913190f1d9b1c64933d9bfd33b4a1b</span>
-    <br />
-    <span style={{color: "#626262"}}>Open a shell with:</span>
-    <br />
-    &nbsp;&nbsp;<span style={{fontWeight: 600}}>tyto console web</span>
-    </div>
+    <TerminalOutput lines={[
+      [{text: "ID       ", color: "#626262"}, {text: "  sbx-c8468508edb87f2a96cd85c31171c47d"}],
+      [{text: "NAME     ", color: "#626262"}, {text: "  web"}],
+      [{text: "STATUS   ", color: "#626262"}, {text: "  "}, {text: "running", color: "#5fd787"}],
+      [{text: "TEMPLATE ", color: "#626262"}, {text: "  bonya-dev"}],
+      [{text: "VERSION  ", color: "#626262"}, {text: "  2"}],
+      [{text: "OPERATION", color: "#626262"}, {text: "  "}, {text: "op-9b913190f1d9b1c64933d9bfd33b4a1b", color: "#626262"}],
+      "",
+      [{text: "Open a shell with:", color: "#626262"}],
+      "",
+      [{text: "  "}, {text: "tyto console web", bold: true}],
+    ]} />
   </Step>
 
   <Step title="Checkpoint before installing anything">
@@ -32,10 +34,10 @@ Get a small web app running inside a sandbox and reachable at a public preview U
     tyto snapshot create web
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#626262"}}>ID    </span>  snp-92670f726baeaa8e4fbf926c73150fe8
-    <span style={{color: "#626262"}}>SOURCE</span>  sbx-c8468508edb87f2a96cd85c31171c47d
-    </div>
+    <TerminalOutput lines={[
+      [{text: "ID    ", color: "#626262"}, {text: "  snp-92670f726baeaa8e4fbf926c73150fe8"}],
+      [{text: "SOURCE", color: "#626262"}, {text: "  sbx-c8468508edb87f2a96cd85c31171c47d"}],
+    ]} />
   </Step>
 
   <Step title="Make a workspace directory">
@@ -43,9 +45,9 @@ Get a small web app running inside a sandbox and reachable at a public preview U
     tyto fs mkdir web /workspace/app
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#626262"}}>Created /workspace/app</span>
-    </div>
+    <TerminalOutput lines={[
+      [{text: "Created /workspace/app", color: "#626262"}],
+    ]} />
   </Step>
 
   <Step title="Upload the app as a tarball">
@@ -56,9 +58,9 @@ Get a small web app running inside a sandbox and reachable at a public preview U
     tyto fs upload web ./app.tar.gz /workspace/app.tar.gz
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#626262"}}>Uploaded ./app.tar.gz to /workspace/app.tar.gz</span>
-    </div>
+    <TerminalOutput lines={[
+      [{text: "Uploaded ./app.tar.gz to /workspace/app.tar.gz", color: "#626262"}],
+    ]} />
   </Step>
 
   <Step title="Extract it on the sandbox">
@@ -72,14 +74,14 @@ Get a small web app running inside a sandbox and reachable at a public preview U
     tyto fs ls web /workspace/app
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#444444"}}>┌──────────────────────────────────────────────────┐</span>
-    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff", fontWeight: 600}}>NAME</span>          <span style={{color: "#5fafff", fontWeight: 600}}>KIND</span>  <span style={{color: "#5fafff", fontWeight: 600}}>SIZE</span>  <span style={{color: "#5fafff", fontWeight: 600}}>MODE</span>  <span style={{color: "#5fafff", fontWeight: 600}}>MODIFIED</span>         <span style={{color: "#444444"}}>│</span>
-    <span style={{color: "#444444"}}>├──────────────────────────────────────────────────┤</span>
-    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>package.json</span>  file  95B   0644  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
-    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>server.js</span>     file  252B  0644  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
-    <span style={{color: "#444444"}}>└──────────────────────────────────────────────────┘</span>
-    </div>
+    <TerminalOutput lines={[
+      [{text: "┌──────────────────────────────────────────────────┐", color: "#444444"}],
+      [{text: "│", color: "#444444"}, {text: " "}, {text: "NAME", color: "#5fafff", bold: true}, {text: "          "}, {text: "KIND", color: "#5fafff", bold: true}, {text: "  "}, {text: "SIZE", color: "#5fafff", bold: true}, {text: "  "}, {text: "MODE", color: "#5fafff", bold: true}, {text: "  "}, {text: "MODIFIED", color: "#5fafff", bold: true}, {text: "         "}, {text: "│", color: "#444444"}],
+      [{text: "├──────────────────────────────────────────────────┤", color: "#444444"}],
+      [{text: "│", color: "#444444"}, {text: " "}, {text: "package.json", color: "#5fd787"}, {text: "  file  95B   0644  2026-09-20 14:32 "}, {text: "│", color: "#444444"}],
+      [{text: "│", color: "#444444"}, {text: " "}, {text: "server.js", color: "#5fd787"}, {text: "     file  252B  0644  2026-09-20 14:32 "}, {text: "│", color: "#444444"}],
+      [{text: "└──────────────────────────────────────────────────┘", color: "#444444"}],
+    ]} />
   </Step>
 
   <Step title="Check for a language runtime before assuming it's there">
@@ -89,9 +91,9 @@ Get a small web app running inside a sandbox and reachable at a public preview U
     tyto exec web -- node --version
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    v22.22.1
-    </div>
+    <TerminalOutput lines={[
+      [{text: "v22.22.1"}],
+    ]} />
   </Step>
 
   <Step title="Install dependencies">
@@ -99,11 +101,11 @@ Get a small web app running inside a sandbox and reachable at a public preview U
     tyto exec web --cwd /workspace/app -- npm install
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    up to date, audited 1 package in 170ms
-    <br />
-    found 0 vulnerabilities
-    </div>
+    <TerminalOutput lines={[
+      [{text: "up to date, audited 1 package in 170ms"}],
+      "",
+      [{text: "found 0 vulnerabilities"}],
+    ]} />
   </Step>
 
   <Step title="Start the dev server in a managed session">
@@ -113,12 +115,12 @@ Get a small web app running inside a sandbox and reachable at a public preview U
     tyto session create web dev -- sh -c 'cd /workspace/app && npm run dev'
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#626262"}}>NAME       </span>  dev
-    <span style={{color: "#626262"}}>STATUS     </span>  <span style={{color: "#ffd700"}}>idle</span>
-    <span style={{color: "#626262"}}>COMMAND    </span>  sh -c cd /workspace/app && npm run dev
-    <span style={{color: "#626262"}}>WORKING DIR</span>
-    </div>
+    <TerminalOutput lines={[
+      [{text: "NAME       ", color: "#626262"}, {text: "  dev"}],
+      [{text: "STATUS     ", color: "#626262"}, {text: "  "}, {text: "idle", color: "#ffd700"}],
+      [{text: "COMMAND    ", color: "#626262"}, {text: "  sh -c cd /workspace/app && npm run dev"}],
+      [{text: "WORKING DIR", color: "#626262"}],
+    ]} />
   </Step>
 
   <Step title="Publish a preview URL">
@@ -126,13 +128,13 @@ Get a small web app running inside a sandbox and reachable at a public preview U
     tyto preview create web 3000 --name app
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#626262"}}>ID  </span>  pv-4j25exovxnccyjqpcgpnbpoiue
-    <span style={{color: "#626262"}}>URL </span>  https://pv-4j25exovxnccyjqpcgpnbpoiue.preview.tyto.run
-    <span style={{color: "#626262"}}>PORT</span>  3000
-    <span style={{color: "#626262"}}>AUTH</span>  <span style={{color: "#ffd700"}}>token</span>
-    <span style={{color: "#626262"}}>NAME</span>  app
-    </div>
+    <TerminalOutput lines={[
+      [{text: "ID  ", color: "#626262"}, {text: "  pv-4j25exovxnccyjqpcgpnbpoiue"}],
+      [{text: "URL ", color: "#626262"}, {text: "  https://pv-4j25exovxnccyjqpcgpnbpoiue.preview.tyto.run"}],
+      [{text: "PORT", color: "#626262"}, {text: "  3000"}],
+      [{text: "AUTH", color: "#626262"}, {text: "  "}, {text: "token", color: "#ffd700"}],
+      [{text: "NAME", color: "#626262"}, {text: "  app"}],
+    ]} />
 
     `token` is the default auth mode — the URL alone isn't enough to reach it; see [Previews](/concepts/previews) for the token exchange. Passing `--auth public` would skip that, at the cost of anyone with the URL being able to reach it.
   </Step>
@@ -142,21 +144,21 @@ Get a small web app running inside a sandbox and reachable at a public preview U
     tyto session attach web dev
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    Replaying 145B of earlier output.
-    <br />
-    <br />
-    &gt; demo-app@1.0.0 dev
-    <br />
-    &gt; node server.js
-    <br />
-    <br />
-    Server listening on port 3000
-    <br />
-    2026-09-21T09:48:13.405Z GET /
-    <br />
-    2026-09-21T09:48:14.456Z GET /health
-    </div>
+    <TerminalOutput lines={[
+      [{text: "Replaying 145B of earlier output."}],
+      "",
+      "",
+      [{text: "> demo-app@1.0.0 dev"}],
+      "",
+      [{text: "> node server.js"}],
+      "",
+      "",
+      [{text: "Server listening on port 3000"}],
+      "",
+      [{text: "2026-09-21T09:48:13.405Z GET /"}],
+      "",
+      [{text: "2026-09-21T09:48:14.456Z GET /health"}],
+    ]} />
 
     Ctrl+D (or Ctrl+C once) detaches your terminal — it does not kill the session, unlike a plain `exec`.
   </Step>
@@ -171,18 +173,18 @@ Get a small web app running inside a sandbox and reachable at a public preview U
     tyto delete web --force
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#626262"}}>Deleted pv-4j25exovxnccyjqpcgpnbpoiue</span>
-    <br />
-    <span style={{color: "#626262"}}>NAME       </span>  dev
-    <span style={{color: "#626262"}}>STATUS     </span>  <span style={{color: "#ff5f5f"}}>killed</span>
-    <span style={{color: "#626262"}}>COMMAND    </span>  sh -c cd /workspace/app && npm run dev
-    <span style={{color: "#626262"}}>WORKING DIR</span>
-    <br />
-    <span style={{color: "#626262"}}>Deleted snp-92670f726baeaa8e4fbf926c73150fe8</span>
-    <br />
-    Deleted sbx-c8468508edb87f2a96cd85c31171c47d
-    </div>
+    <TerminalOutput lines={[
+      [{text: "Deleted pv-4j25exovxnccyjqpcgpnbpoiue", color: "#626262"}],
+      "",
+      [{text: "NAME       ", color: "#626262"}, {text: "  dev"}],
+      [{text: "STATUS     ", color: "#626262"}, {text: "  "}, {text: "killed", color: "#ff5f5f"}],
+      [{text: "COMMAND    ", color: "#626262"}, {text: "  sh -c cd /workspace/app && npm run dev"}],
+      [{text: "WORKING DIR", color: "#626262"}],
+      "",
+      [{text: "Deleted snp-92670f726baeaa8e4fbf926c73150fe8", color: "#626262"}],
+      "",
+      [{text: "Deleted sbx-c8468508edb87f2a96cd85c31171c47d"}],
+    ]} />
   </Step>
 </Steps>
 

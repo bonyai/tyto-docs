@@ -3,6 +3,8 @@ title: Run a one-off script and collect its output
 description: Push a script into a disposable sandbox, run it, and see its full result — the CLI's built-in way to do a one-off batch run
 ---
 
+import { TerminalOutput } from "/snippets/terminal-output.jsx";
+
 Push a script into a disposable sandbox, run it once, and see its full result — no sandbox to create or clean up yourself. `tyto job run` handles all of that: by default it creates a sandbox just for this run and deletes it when the run ends. Every command below uses the deployment's default template; if you haven't installed the CLI or logged in yet, start with the [Quickstart](/quickstart).
 
 <Steps>
@@ -25,23 +27,23 @@ Push a script into a disposable sandbox, run it once, and see its full result �
     tyto job run --script ./report.sh --name report
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    Report generated at 2026-09-21T11:32:28Z
-    <br />
-    Disk usage:
-    <br />
-    Filesystem      Size  Used Avail Use% Mounted on
-    <br />
-    /dev/root       3.9G  2.7G  1.1G  72% /
-    <br />
-    Done.
-    <br />
-    <span style={{color: "#626262"}}>ID       </span>  d40295e5e0c9b89a1359721c31a3d6d54b75dea51c44080113b2f40baf9944e3
-    <span style={{color: "#626262"}}>NAME     </span>  report
-    <span style={{color: "#626262"}}>STATUS   </span>  completed
-    <span style={{color: "#626262"}}>SANDBOX  </span>  sbx-c3e631452e349ec22ed2f2024d88285f
-    <span style={{color: "#626262"}}>EXIT CODE</span>  0
-    </div>
+    <TerminalOutput lines={[
+      [{text: "Report generated at 2026-09-21T11:32:28Z"}],
+      "",
+      [{text: "Disk usage:"}],
+      "",
+      [{text: "Filesystem      Size  Used Avail Use% Mounted on"}],
+      "",
+      [{text: "/dev/root       3.9G  2.7G  1.1G  72% /"}],
+      "",
+      [{text: "Done."}],
+      "",
+      [{text: "ID       ", color: "#626262"}, {text: "  d40295e5e0c9b89a1359721c31a3d6d54b75dea51c44080113b2f40baf9944e3"}],
+      [{text: "NAME     ", color: "#626262"}, {text: "  report"}],
+      [{text: "STATUS   ", color: "#626262"}, {text: "  completed"}],
+      [{text: "SANDBOX  ", color: "#626262"}, {text: "  sbx-c3e631452e349ec22ed2f2024d88285f"}],
+      [{text: "EXIT CODE", color: "#626262"}, {text: "  0"}],
+    ]} />
 
     The script's own stdout appears first, then the run's summary. `SANDBOX` is the disposable sandbox this run created — by the time this printed, it was already deleted.
   </Step>
