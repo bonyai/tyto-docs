@@ -78,8 +78,10 @@ Start a long-running process in a managed session, disconnect from it on purpose
     `ATTACHED` is now `no` — the session kept running after you detached.
   </Step>
 
-  <Step title="Let it suspend, then check again">
-    A sandbox suspends automatically after enough inactivity, and resuming is implicit the next time you reach it (see [Sandboxes](/concepts/sandboxes)). Listing a suspended sandbox's sessions doesn't wake it — you're served from a snapshot taken the moment it suspended, and the output says so:
+  <Step title="What suspend and resume look like">
+    A sandbox suspends automatically after enough inactivity, and resuming is implicit the next time you reach it (see [Sandboxes](/concepts/sandboxes)). This particular session won't trigger that on its own — a detached session's own output still counts as activity and defers idle suspend, so a `tick`-every-5-seconds loop like `watcher` keeps the sandbox awake by design (see [Sessions](/concepts/sessions)). A quieter detached session (or the sandbox sitting untouched entirely) would suspend on its normal schedule instead.
+
+    Either way, listing sessions on a suspended sandbox doesn't wake it — you're served from a snapshot taken the moment it suspended, and the output says so explicitly:
 
     ```shell
     tyto session list worker
