@@ -1,0 +1,159 @@
+---
+title: A persistent session you can walk away from and come back to
+description: Start a long-running process in a managed session, disconnect on purpose, and reattach later — even after the sandbox has suspended and resumed
+---
+
+Start a long-running process in a managed session, disconnect from it on purpose, and reattach later — even after the sandbox has suspended and resumed. This is the one thing plain `exec` can't do: a managed session outlives your connection (see [Sessions](/concepts/sessions)). Every command below uses the `bonya-dev` template; if you haven't installed the CLI or logged in yet, start with the [Quickstart](/quickstart).
+
+<Steps>
+  <Step title="Create a sandbox">
+    ```shell
+    tyto create worker --template bonya-dev
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>ID       </span>  sbx-b30c1df7b6d0106ad2bc77558f446f13
+    <span style={{color: "#626262"}}>NAME     </span>  worker
+    <span style={{color: "#626262"}}>STATUS   </span>  <span style={{color: "#5fd787"}}>running</span>
+    <span style={{color: "#626262"}}>TEMPLATE </span>  bonya-dev
+    <span style={{color: "#626262"}}>VERSION  </span>  2
+    <span style={{color: "#626262"}}>OPERATION</span>  <span style={{color: "#626262"}}>op-6bf91e8410fb78874d9599ce0255859b</span>
+    <br />
+    <span style={{color: "#626262"}}>Open a shell with:</span>
+    <br />
+    &nbsp;&nbsp;<span style={{fontWeight: 600}}>tyto console worker</span>
+    </div>
+  </Step>
+
+  <Step title="Start a managed session">
+    A simple loop stands in for any long-running process — a dev server, a queue worker, anything you'd otherwise leave running in a terminal you don't want to keep open.
+
+    ```shell
+    tyto session create worker watcher -- sh -c 'i=0; while true; do i=$((i+1)); echo "tick $i"; sleep 5; done'
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>NAME       </span>  watcher
+    <span style={{color: "#626262"}}>STATUS     </span>  <span style={{color: "#ffd700"}}>idle</span>
+    <span style={{color: "#626262"}}>COMMAND    </span>  sh -c i=0; while true; do i=$((i+1)); echo "tick $i"; sleep 5; done
+    <span style={{color: "#626262"}}>WORKING DIR</span>
+    </div>
+  </Step>
+
+  <Step title="Attach, watch it, then detach without killing it">
+    ```shell
+    tyto session attach worker watcher
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    Replaying 32B of earlier output.
+    <br />
+    tick 1
+    <br />
+    tick 2
+    <br />
+    tick 3
+    <br />
+    tick 4
+    <br />
+    tick 5
+    </div>
+
+    Ctrl+D (or Ctrl+C once) detaches your terminal — it does not kill the session, unlike a plain `exec`.
+  </Step>
+
+  <Step title="Confirm it's still running from a fresh terminal">
+    ```shell
+    tyto session list worker
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#444444"}}>┌───────────────────────────────────────────────────────────────────────────────┐</span>
+    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff", fontWeight: 600}}>NAME</span>     <span style={{color: "#5fafff", fontWeight: 600}}>STATUS</span>  <span style={{color: "#5fafff", fontWeight: 600}}>ATTACHED</span>  <span style={{color: "#5fafff", fontWeight: 600}}>COMMAND</span>                           <span style={{color: "#5fafff", fontWeight: 600}}>STARTED</span>          <span style={{color: "#444444"}}>│</span>
+    <span style={{color: "#444444"}}>├───────────────────────────────────────────────────────────────────────────────┤</span>
+    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>watcher</span>  <span style={{color: "#ffd700"}}>idle</span>    <span style={{color: "#626262"}}>no</span>        sh -c i=0; while true; do i=$((…  2026-09-21 12:54 <span style={{color: "#444444"}}>│</span>
+    <span style={{color: "#444444"}}>└───────────────────────────────────────────────────────────────────────────────┘</span>
+    </div>
+
+    `ATTACHED` is now `no` — the session kept running after you detached.
+  </Step>
+
+  <Step title="Let it suspend, then check again">
+    A sandbox suspends automatically after enough inactivity, and resuming is implicit the next time you reach it (see [Sandboxes](/concepts/sandboxes)). Listing a suspended sandbox's sessions doesn't wake it — you're served from a snapshot taken the moment it suspended, and the output says so:
+
+    ```shell
+    tyto session list worker
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#444444"}}>┌───────────────────────────────────────────────────────────────────────────────┐</span>
+    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff", fontWeight: 600}}>NAME</span>     <span style={{color: "#5fafff", fontWeight: 600}}>STATUS</span>  <span style={{color: "#5fafff", fontWeight: 600}}>ATTACHED</span>  <span style={{color: "#5fafff", fontWeight: 600}}>COMMAND</span>                           <span style={{color: "#5fafff", fontWeight: 600}}>STARTED</span>          <span style={{color: "#444444"}}>│</span>
+    <span style={{color: "#444444"}}>├───────────────────────────────────────────────────────────────────────────────┤</span>
+    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>watcher</span>  <span style={{color: "#ffd700"}}>idle</span>    <span style={{color: "#626262"}}>no</span>        sh -c i=0; while true; do i=$((…  2026-09-21 12:54 <span style={{color: "#444444"}}>│</span>
+    <span style={{color: "#444444"}}>└───────────────────────────────────────────────────────────────────────────────┘</span>
+    <span style={{color: "#626262"}}>Sandbox is suspended; listed from the suspend-time snapshot.</span>
+    </div>
+  </Step>
+
+  <Step title="Reattach">
+    Attaching to a suspended sandbox's session wakes it — the process was never stopped, it just wasn't being watched.
+
+    ```shell
+    tyto session attach worker watcher
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    Replaying 135B of earlier output.
+    <br />
+    tick 1
+    <br />
+    tick 2
+    <br />
+    tick 3
+    <br />
+    ...
+    <br />
+    tick 14
+    <br />
+    tick 15
+    <br />
+    tick 16
+    </div>
+
+    The counter kept climbing the whole time — the same session, not a new one.
+  </Step>
+
+  <Step title="Kill the session">
+    ```shell
+    tyto session kill worker watcher
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>NAME       </span>  watcher
+    <span style={{color: "#626262"}}>STATUS     </span>  <span style={{color: "#ff5f5f"}}>killed</span>
+    <span style={{color: "#626262"}}>COMMAND    </span>  sh -c i=0; while true; do i=$((i+1)); echo "tick $i"; sleep 5; done
+    <span style={{color: "#626262"}}>WORKING DIR</span>
+    </div>
+  </Step>
+
+  <Step title="Clean up">
+    ```shell
+    tyto delete worker --force
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    Deleted sbx-b30c1df7b6d0106ad2bc77558f446f13
+    </div>
+  </Step>
+</Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Sessions" icon="terminal" href="/concepts/sessions">
+    The full attach/detach/replay model, and how the 1 MiB replay ring works.
+  </Card>
+  <Card title="Sandboxes" icon="cube" href="/concepts/sandboxes">
+    Lifecycle states, and exactly when suspend and resume happen.
+  </Card>
+</CardGroup>

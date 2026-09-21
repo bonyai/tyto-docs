@@ -1,0 +1,102 @@
+---
+title: Run a one-off script and collect its output
+description: Push a small script into a sandbox, run it once, and pull back its output — the CLI's way to do a one-off batch run
+---
+
+Push a small script into a sandbox, run it once, and pull back its output. Tyto's REST/SDK layer has a `jobs` concept for scheduled and async batch work (see [Jobs](/concepts/jobs)), but the CLI has no equivalent command group — this tutorial shows the direct alternative: upload, run, download, done. Every command below uses the `bonya-dev` template; if you haven't installed the CLI or logged in yet, start with the [Quickstart](/quickstart).
+
+<Steps>
+  <Step title="Create a sandbox">
+    ```shell
+    tyto create batch --template bonya-dev
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>ID       </span>  sbx-c37fe7bd4b9b66932217c927b03890f6
+    <span style={{color: "#626262"}}>NAME     </span>  batch
+    <span style={{color: "#626262"}}>STATUS   </span>  <span style={{color: "#5fd787"}}>running</span>
+    <span style={{color: "#626262"}}>TEMPLATE </span>  bonya-dev
+    <span style={{color: "#626262"}}>VERSION  </span>  2
+    <span style={{color: "#626262"}}>OPERATION</span>  <span style={{color: "#626262"}}>op-7dbe06f1bf7a8e06ba996b679116590e</span>
+    <br />
+    <span style={{color: "#626262"}}>Open a shell with:</span>
+    <br />
+    &nbsp;&nbsp;<span style={{fontWeight: 600}}>tyto console batch</span>
+    </div>
+  </Step>
+
+  <Step title="Write the script locally, then upload it">
+    `fs upload` sends exactly one file's bytes per call, which is all a single script needs (see [Files](/concepts/files)).
+
+    ```shell
+    tyto fs upload batch ./report.sh /workspace/report.sh
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>Uploaded /tmp/report.sh to /workspace/report.sh</span>
+    </div>
+  </Step>
+
+  <Step title="Make it executable">
+    ```shell
+    tyto exec batch -- chmod +x /workspace/report.sh
+    ```
+
+    `chmod` prints nothing on success — no output block for this one.
+  </Step>
+
+  <Step title="Run it">
+    ```shell
+    tyto exec batch -- sh -c '/workspace/report.sh > /workspace/report.log 2>&1'
+    ```
+
+    Redirecting to a file remotely means the CLI itself prints nothing (`exec`'s own exit code mirrors the remote command's exactly), but the file now holds the run's output:
+
+    ```shell
+    tyto fs read batch /workspace/report.log
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    Report generated at 2026-09-21T09:53:44Z
+    <br />
+    Disk usage:
+    <br />
+    Filesystem      Size  Used Avail Use% Mounted on
+    <br />
+    /dev/root       3.9G  2.7G  1.1G  72% /
+    <br />
+    Done.
+    </div>
+  </Step>
+
+  <Step title="Download the results">
+    ```shell
+    tyto fs download batch /workspace/report.log ./report.log
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>Downloaded /workspace/report.log to ./report.log</span>
+    </div>
+  </Step>
+
+  <Step title="Clean up">
+    ```shell
+    tyto delete batch --force
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    Deleted sbx-c37fe7bd4b9b66932217c927b03890f6
+    </div>
+  </Step>
+</Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Jobs" icon="list-check" href="/concepts/jobs">
+    If you need scheduling or retries, not just a one-off run.
+  </Card>
+  <Card title="Transfer files" icon="folder-open" href="/guides/transfer-files">
+    The full read/write/upload/download surface, including large files.
+  </Card>
+</CardGroup>
