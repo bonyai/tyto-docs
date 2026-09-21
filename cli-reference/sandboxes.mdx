@@ -39,6 +39,16 @@ tyto list --json | jq -r '.[] | select(.last_observed_status=="running") | .id'
 ```
 </CodeGroup>
 
+On a real terminal, `tyto list` looks like this:
+
+<div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+<span style={{color: "#444444"}}>┌─────────────────────────────────────────────────────────────────────────┐</span>
+<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff", fontWeight: 600}}>ID</span>            <span style={{color: "#5fafff", fontWeight: 600}}>NAME</span>               <span style={{color: "#5fafff", fontWeight: 600}}>STATUS</span>     <span style={{color: "#5fafff", fontWeight: 600}}>TEMPLATE</span>   <span style={{color: "#5fafff", fontWeight: 600}}>CREATED</span>          <span style={{color: "#444444"}}>│</span>
+<span style={{color: "#444444"}}>├─────────────────────────────────────────────────────────────────────────┤</span>
+<span style={{color: "#444444"}}>│</span> sbx-4f1c9a2…  <span style={{color: "#5fd787"}}>web-server</span>  <span style={{color: "#ffd700"}}>suspended</span>  bonya-dev  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
+<span style={{color: "#444444"}}>└─────────────────────────────────────────────────────────────────────────┘</span>
+</div>
+
 ## `tyto get [sandbox]`
 
 <Info>Aliases: `show`, `info`</Info>

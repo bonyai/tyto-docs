@@ -43,6 +43,18 @@ tyto session list web
 
 If the sandbox is currently suspended, the listing is served from a suspend-time snapshot and the output notes that explicitly.
 
+On a real terminal, `tyto session list` looks like this:
+
+<div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+<span style={{color: "#444444"}}>┌───────────────────────────────────────────────────────────────┐</span>
+<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff", fontWeight: 600}}>NAME</span>          <span style={{color: "#5fafff", fontWeight: 600}}>STATUS</span>  <span style={{color: "#5fafff", fontWeight: 600}}>ATTACHED</span>  <span style={{color: "#5fafff", fontWeight: 600}}>COMMAND</span>      <span style={{color: "#5fafff", fontWeight: 600}}>STARTED</span>          <span style={{color: "#444444"}}>│</span>
+<span style={{color: "#444444"}}>├───────────────────────────────────────────────────────────────┤</span>
+<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>dev-server</span>    <span style={{color: "#626262"}}>exited</span>  <span style={{color: "#626262"}}>no</span>        npm run dev  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
+<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>dev-server-2</span>  <span style={{color: "#ffd700"}}>idle</span>    <span style={{color: "#626262"}}>no</span>        sleep 3600   2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
+<span style={{color: "#444444"}}>└───────────────────────────────────────────────────────────────┘</span>
+<span style={{color: "#626262"}}>Sandbox is suspended; listed from the suspend-time snapshot.</span>
+</div>
+
 ## `attach`
 
 Connects to a running managed session.

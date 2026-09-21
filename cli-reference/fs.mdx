@@ -85,6 +85,18 @@ tyto fs ls [sandbox] <path>
 tyto fs ls web /workspace
 ```
 
+On a real terminal, `tyto fs ls` looks like this:
+
+<div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+<span style={{color: "#444444"}}>┌─────────────────────────────────────────────────────┐</span>
+<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff", fontWeight: 600}}>NAME</span>       <span style={{color: "#5fafff", fontWeight: 600}}>KIND</span>       <span style={{color: "#5fafff", fontWeight: 600}}>SIZE</span>   <span style={{color: "#5fafff", fontWeight: 600}}>MODE</span>  <span style={{color: "#5fafff", fontWeight: 600}}>MODIFIED</span>         <span style={{color: "#444444"}}>│</span>
+<span style={{color: "#444444"}}>├─────────────────────────────────────────────────────┤</span>
+<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>README.md</span>  file       15B    0644  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
+<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>index.js</span>   file       18B    0644  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
+<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff"}}>src/</span>       directory  4.0KB  0755  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
+<span style={{color: "#444444"}}>└─────────────────────────────────────────────────────┘</span>
+</div>
+
 ## `stat`
 
 Shows metadata (kind, size, mode, modified time) for a remote path.
