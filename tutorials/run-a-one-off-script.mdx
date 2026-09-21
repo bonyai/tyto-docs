@@ -1,0 +1,69 @@
+---
+title: Run a one-off script and collect its output
+description: Push a script into a disposable sandbox, run it, and see its full result — the CLI's built-in way to do a one-off batch run
+---
+
+Push a script into a disposable sandbox, run it once, and see its full result — no sandbox to create or clean up yourself. `tyto job run` handles all of that: by default it creates a sandbox just for this run and deletes it when the run ends. Every command below uses the deployment's default template; if you haven't installed the CLI or logged in yet, start with the [Quickstart](/quickstart).
+
+<Steps>
+  <Step title="Write the script locally">
+    ```shell
+    cat > report.sh << 'EOF'
+    #!/bin/sh
+    echo "Report generated at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "Disk usage:"
+    df -h /workspace 2>/dev/null || df -h /
+    echo "Done."
+    EOF
+    ```
+  </Step>
+
+  <Step title="Run it as a job">
+    `--script` uploads and runs the file in one call; `job run` blocks until it finishes and prints the result. There's no sandbox to create first — one is provisioned for this run and torn down automatically when it's done.
+
+    ```shell
+    tyto job run --script ./report.sh --name report
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    Report generated at 2026-09-21T11:32:28Z
+    <br />
+    Disk usage:
+    <br />
+    Filesystem      Size  Used Avail Use% Mounted on
+    <br />
+    /dev/root       3.9G  2.7G  1.1G  72% /
+    <br />
+    Done.
+    <br />
+    <span style={{color: "#626262"}}>ID       </span>  d40295e5e0c9b89a1359721c31a3d6d54b75dea51c44080113b2f40baf9944e3
+    <span style={{color: "#626262"}}>NAME     </span>  report
+    <span style={{color: "#626262"}}>STATUS   </span>  completed
+    <span style={{color: "#626262"}}>SANDBOX  </span>  sbx-c3e631452e349ec22ed2f2024d88285f
+    <span style={{color: "#626262"}}>EXIT CODE</span>  0
+    </div>
+
+    The script's own stdout appears first, then the run's summary. `SANDBOX` is the disposable sandbox this run created — by the time this printed, it was already deleted.
+  </Step>
+
+  <Step title="Look up the run later">
+    Every run gets an id you can hand to `job get` to see it again, including its full stored spec and timeline — useful if you didn't capture the output the first time:
+
+    ```shell
+    tyto job get d40295e5e0c9b89a1359721c31a3d6d54b75dea51c44080113b2f40baf9944e3
+    ```
+
+    Nothing to clean up — the run's own sandbox already tore itself down. Pass `--keep` to `job run` if you want the sandbox to survive the run instead.
+  </Step>
+</Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Jobs" icon="list-check" href="/concepts/jobs">
+    Job schedules, existing-sandbox targeting, and the full spec.
+  </Card>
+  <Card title="Transfer files" icon="folder-open" href="/guides/transfer-files">
+    The `fs` read/write/upload/download surface, for when you're working against a sandbox you already have.
+  </Card>
+</CardGroup>

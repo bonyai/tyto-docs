@@ -43,6 +43,14 @@
             "pages": ["index", "quickstart", "authentication"]
           },
           {
+            "group": "Tutorials",
+            "pages": [
+              "tutorials/build-run-preview-a-web-app",
+              "tutorials/run-a-one-off-script",
+              "tutorials/persistent-dev-session"
+            ]
+          },
+          {
             "group": "Core concepts",
             "pages": [
               "concepts/sandboxes",

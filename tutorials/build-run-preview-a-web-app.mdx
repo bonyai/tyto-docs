@@ -1,0 +1,198 @@
+---
+title: Build, run, and preview a web app
+description: Get a small web app running inside a sandbox and reachable at a public preview URL, entirely from the CLI
+---
+
+Get a small web app running inside a sandbox and reachable at a public preview URL — entirely from the `tyto` CLI. Every command below uses the `bonya-dev` template. If you haven't installed the CLI or logged in yet, start with the [Quickstart](/quickstart).
+
+<Steps>
+  <Step title="Create a sandbox">
+    ```shell
+    tyto create web --template bonya-dev
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>ID       </span>  sbx-c8468508edb87f2a96cd85c31171c47d
+    <span style={{color: "#626262"}}>NAME     </span>  web
+    <span style={{color: "#626262"}}>STATUS   </span>  <span style={{color: "#5fd787"}}>running</span>
+    <span style={{color: "#626262"}}>TEMPLATE </span>  bonya-dev
+    <span style={{color: "#626262"}}>VERSION  </span>  2
+    <span style={{color: "#626262"}}>OPERATION</span>  <span style={{color: "#626262"}}>op-9b913190f1d9b1c64933d9bfd33b4a1b</span>
+    <br />
+    <span style={{color: "#626262"}}>Open a shell with:</span>
+    <br />
+    &nbsp;&nbsp;<span style={{fontWeight: 600}}>tyto console web</span>
+    </div>
+  </Step>
+
+  <Step title="Checkpoint before installing anything">
+    Snapshots here are one-way checkpoints — there's no `restore` or `list` command in the CLI today (see [Snapshots](/concepts/snapshots)). Treat the id below as an insurance policy you'd manually rebuild from — a fresh sandbox plus reapplying your changes — not a one-command rollback.
+
+    ```shell
+    tyto snapshot create web
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>ID    </span>  snp-92670f726baeaa8e4fbf926c73150fe8
+    <span style={{color: "#626262"}}>SOURCE</span>  sbx-c8468508edb87f2a96cd85c31171c47d
+    </div>
+  </Step>
+
+  <Step title="Make a workspace directory">
+    ```shell
+    tyto fs mkdir web /workspace/app
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>Created /workspace/app</span>
+    </div>
+  </Step>
+
+  <Step title="Upload the app as a tarball">
+    `fs upload` moves exactly one file's raw bytes per call — there's no directory upload (see [Files](/concepts/files)). Package the project locally first, then upload the single archive:
+
+    ```shell
+    tar czf app.tar.gz -C my-app .
+    tyto fs upload web ./app.tar.gz /workspace/app.tar.gz
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>Uploaded ./app.tar.gz to /workspace/app.tar.gz</span>
+    </div>
+  </Step>
+
+  <Step title="Extract it on the sandbox">
+    ```shell
+    tyto exec web -- tar xzf /workspace/app.tar.gz -C /workspace/app
+    ```
+
+    `tar` prints nothing on success. Confirm the files landed:
+
+    ```shell
+    tyto fs ls web /workspace/app
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#444444"}}>┌──────────────────────────────────────────────────┐</span>
+    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff", fontWeight: 600}}>NAME</span>          <span style={{color: "#5fafff", fontWeight: 600}}>KIND</span>  <span style={{color: "#5fafff", fontWeight: 600}}>SIZE</span>  <span style={{color: "#5fafff", fontWeight: 600}}>MODE</span>  <span style={{color: "#5fafff", fontWeight: 600}}>MODIFIED</span>         <span style={{color: "#444444"}}>│</span>
+    <span style={{color: "#444444"}}>├──────────────────────────────────────────────────┤</span>
+    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>package.json</span>  file  95B   0644  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
+    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>server.js</span>     file  252B  0644  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
+    <span style={{color: "#444444"}}>└──────────────────────────────────────────────────┘</span>
+    </div>
+  </Step>
+
+  <Step title="Check for a language runtime before assuming it's there">
+    Nothing guarantees a Node runtime is preinstalled on every template (see [Templates](/concepts/templates)) — check first, and only proceed with `npm install` if it succeeds. `bonya-dev` does include Node:
+
+    ```shell
+    tyto exec web -- node --version
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    v22.22.1
+    </div>
+  </Step>
+
+  <Step title="Install dependencies">
+    ```shell
+    tyto exec web --cwd /workspace/app -- npm install
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    up to date, audited 1 package in 170ms
+    <br />
+    found 0 vulnerabilities
+    </div>
+  </Step>
+
+  <Step title="Start the dev server in a managed session">
+    A managed session keeps the process running after your terminal disconnects — unlike `exec`, which ends when the connection does (see [Sessions](/concepts/sessions)). `session create` has no `--cwd` flag, so `cd` inside the command itself:
+
+    ```shell
+    tyto session create web dev -- sh -c 'cd /workspace/app && npm run dev'
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>NAME       </span>  dev
+    <span style={{color: "#626262"}}>STATUS     </span>  <span style={{color: "#ffd700"}}>idle</span>
+    <span style={{color: "#626262"}}>COMMAND    </span>  sh -c cd /workspace/app && npm run dev
+    <span style={{color: "#626262"}}>WORKING DIR</span>
+    </div>
+  </Step>
+
+  <Step title="Publish a preview URL">
+    ```shell
+    tyto preview create web 3000 --name app
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>ID  </span>  pv-4j25exovxnccyjqpcgpnbpoiue
+    <span style={{color: "#626262"}}>URL </span>  https://pv-4j25exovxnccyjqpcgpnbpoiue.preview.tyto.run
+    <span style={{color: "#626262"}}>PORT</span>  3000
+    <span style={{color: "#626262"}}>AUTH</span>  <span style={{color: "#ffd700"}}>token</span>
+    <span style={{color: "#626262"}}>NAME</span>  app
+    </div>
+
+    `token` is the default auth mode — the URL alone isn't enough to reach it; see [Previews](/concepts/previews) for the token exchange. Passing `--auth public` would skip that, at the cost of anyone with the URL being able to reach it.
+  </Step>
+
+  <Step title="Watch it running">
+    ```shell
+    tyto session attach web dev
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    Replaying 145B of earlier output.
+    <br />
+    <br />
+    &gt; demo-app@1.0.0 dev
+    <br />
+    &gt; node server.js
+    <br />
+    <br />
+    Server listening on port 3000
+    <br />
+    2026-09-21T09:48:13.405Z GET /
+    <br />
+    2026-09-21T09:48:14.456Z GET /health
+    </div>
+
+    Ctrl+D (or Ctrl+C once) detaches your terminal — it does not kill the session, unlike a plain `exec`.
+  </Step>
+
+  <Step title="Clean up">
+    Tear down what this page created, in reverse order:
+
+    ```shell
+    tyto preview delete web pv-4j25exovxnccyjqpcgpnbpoiue
+    tyto session kill web dev
+    tyto snapshot delete web snp-92670f726baeaa8e4fbf926c73150fe8
+    tyto delete web --force
+    ```
+
+    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
+    <span style={{color: "#626262"}}>Deleted pv-4j25exovxnccyjqpcgpnbpoiue</span>
+    <br />
+    <span style={{color: "#626262"}}>NAME       </span>  dev
+    <span style={{color: "#626262"}}>STATUS     </span>  <span style={{color: "#ff5f5f"}}>killed</span>
+    <span style={{color: "#626262"}}>COMMAND    </span>  sh -c cd /workspace/app && npm run dev
+    <span style={{color: "#626262"}}>WORKING DIR</span>
+    <br />
+    <span style={{color: "#626262"}}>Deleted snp-92670f726baeaa8e4fbf926c73150fe8</span>
+    <br />
+    Deleted sbx-c8468508edb87f2a96cd85c31171c47d
+    </div>
+  </Step>
+</Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Previews" icon="globe" href="/concepts/previews">
+    Auth modes, capability upgrades, and preview limitations.
+  </Card>
+  <Card title="Expose a preview" icon="link" href="/guides/expose-a-preview">
+    The guide this tutorial's preview step is based on.
+  </Card>
+</CardGroup>
