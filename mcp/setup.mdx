@@ -33,23 +33,23 @@ The server doesn't validate `BONYA_API_KEY` at startup — it resolves configura
 
 ## Connect a client
 
-Add the server to your MCP client config:
+Every client below launches `tyto-mcp` as a local process over stdio and passes it environment variables — the same `mcpServers`/`mcp_servers` shape each time, just in a different config format. `BONYA_ENDPOINT` and `BONYA_ORGANIZATION_ID` are optional in every example; add them the same way as `BONYA_API_KEY` if you need them.
 
-```json
-{
-  "mcpServers": {
-    "tyto": {
-      "command": "tyto-mcp",
-      "env": {
-        "BONYA_API_KEY": "your_key_here",
-        "BONYA_ENDPOINT": "https://api.tyto.run"
-      }
-    }
-  }
-}
+### Claude Code
+
+```bash
+claude mcp add tyto --env BONYA_API_KEY=your_key_here -- tyto-mcp
 ```
 
-`BONYA_ENDPOINT` is optional — omit it to use the default `https://api.tyto.run`. Add `BONYA_ORGANIZATION_ID` the same way if you need to scope calls to a specific organization:
+This registers the server for the **current project directory only** — an already-running session needs a full restart (not just a retry) to pick it up, since MCP servers only connect at session startup. Add `-s user` to make it available in every project instead:
+
+```bash
+claude mcp add tyto -s user --env BONYA_API_KEY=your_key_here -- tyto-mcp
+```
+
+### Claude Desktop
+
+Claude Desktop has no CLI shortcut — edit its config file directly, then fully quit and reopen the app (not just close the window). Open the file from Claude Desktop itself: the **Claude** menu (macOS menu bar, not an in-window menu) → **Settings** → **Developer** tab → **Edit Config**. The file lives at `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
 
 ```json
 {
@@ -65,11 +65,35 @@ Add the server to your MCP client config:
 }
 ```
 
-### Claude Code
+If Claude Desktop reports it can't find `tyto-mcp`, it's usually a `PATH` problem — GUI apps on macOS don't always see the same `PATH` your terminal does, so a global install (`npm install -g @bonya-ai/tyto-mcp`) is the more reliable option there. Per-server logs live at `~/Library/Logs/Claude/mcp-server-tyto.log` (macOS) or `%APPDATA%\Claude\logs` (Windows) if a server fails to start.
+
+### Codex
 
 ```bash
-claude mcp add tyto --env BONYA_API_KEY=your_key_here -- tyto-mcp
+codex mcp add tyto --env BONYA_API_KEY=your_key_here -- tyto-mcp
 ```
+
+This writes to `~/.codex/config.toml`, which you can also edit directly:
+
+```toml
+[mcp_servers.tyto]
+command = "tyto-mcp"
+
+[mcp_servers.tyto.env]
+BONYA_API_KEY = "your_key_here"
+```
+
+<Note>
+The table name must be exactly `mcp_servers` (snake_case) — Claude's `mcpServers` key from the JSON examples above doesn't carry over; Codex won't recognize it.
+</Note>
+
+### ChatGPT
+
+<Warning>
+Plain ChatGPT at chatgpt.com **cannot** run `tyto-mcp` — it only connects to MCP servers reachable over the network (a public URL, or OpenAI's Secure MCP Tunnel for a private one), never a local command. If you only use ChatGPT in the browser, there's no stdio path for a local server like this one.
+</Warning>
+
+The ChatGPT **desktop app** is a separate surface built on the same underlying host as Codex, and as of writing supports local stdio servers via **Settings → MCP servers → Add server** (choosing **STDIO**), or by editing `~/.codex/config.toml` directly since it shares that file with Codex. This has moved between releases before, so check OpenAI's current docs if a config option described here doesn't match what you see.
 
 ## Errors
 

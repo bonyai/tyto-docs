@@ -3,6 +3,8 @@ title: A persistent session you can walk away from and come back to
 description: Start a long-running process in a managed session, disconnect on purpose, and reattach later — even after the sandbox has suspended and resumed
 ---
 
+import { TerminalOutput } from "/snippets/terminal-output.jsx";
+
 Start a long-running process in a managed session, disconnect from it on purpose, and reattach later — even after the sandbox has suspended and resumed. This is the one thing plain `exec` can't do: a managed session outlives your connection (see [Sessions](/concepts/sessions)). Every command below uses the `bonya-dev` template; if you haven't installed the CLI or logged in yet, start with the [Quickstart](/quickstart).
 
 <Steps>
@@ -11,18 +13,17 @@ Start a long-running process in a managed session, disconnect from it on purpose
     tyto create worker --template bonya-dev
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#626262"}}>ID       </span>  sbx-b30c1df7b6d0106ad2bc77558f446f13
-    <span style={{color: "#626262"}}>NAME     </span>  worker
-    <span style={{color: "#626262"}}>STATUS   </span>  <span style={{color: "#5fd787"}}>running</span>
-    <span style={{color: "#626262"}}>TEMPLATE </span>  bonya-dev
-    <span style={{color: "#626262"}}>VERSION  </span>  2
-    <span style={{color: "#626262"}}>OPERATION</span>  <span style={{color: "#626262"}}>op-6bf91e8410fb78874d9599ce0255859b</span>
-    <br />
-    <span style={{color: "#626262"}}>Open a shell with:</span>
-    <br />
-    &nbsp;&nbsp;<span style={{fontWeight: 600}}>tyto console worker</span>
-    </div>
+    <TerminalOutput lines={[
+      [{text: "ID       ", color: "#626262"}, {text: "  sbx-b30c1df7b6d0106ad2bc77558f446f13"}],
+      [{text: "NAME     ", color: "#626262"}, {text: "  worker"}],
+      [{text: "STATUS   ", color: "#626262"}, {text: "  "}, {text: "running", color: "#5fd787"}],
+      [{text: "TEMPLATE ", color: "#626262"}, {text: "  bonya-dev"}],
+      [{text: "VERSION  ", color: "#626262"}, {text: "  2"}],
+      [{text: "OPERATION", color: "#626262"}, {text: "  "}, {text: "op-6bf91e8410fb78874d9599ce0255859b", color: "#626262"}],
+      "",
+      [{text: "Open a shell with:", color: "#626262"}],
+      [{text: "  "}, {text: "tyto console worker", bold: true}],
+    ]} />
   </Step>
 
   <Step title="Start a managed session">
@@ -32,12 +33,12 @@ Start a long-running process in a managed session, disconnect from it on purpose
     tyto session create worker watcher -- sh -c 'i=0; while true; do i=$((i+1)); echo "tick $i"; sleep 5; done'
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#626262"}}>NAME       </span>  watcher
-    <span style={{color: "#626262"}}>STATUS     </span>  <span style={{color: "#ffd700"}}>idle</span>
-    <span style={{color: "#626262"}}>COMMAND    </span>  sh -c i=0; while true; do i=$((i+1)); echo "tick $i"; sleep 5; done
-    <span style={{color: "#626262"}}>WORKING DIR</span>
-    </div>
+    <TerminalOutput lines={[
+      [{text: "NAME       ", color: "#626262"}, {text: "  watcher"}],
+      [{text: "STATUS     ", color: "#626262"}, {text: "  "}, {text: "idle", color: "#ffd700"}],
+      [{text: "COMMAND    ", color: "#626262"}, {text: "  sh -c i=0; while true; do i=$((i+1)); echo \"tick $i\"; sleep 5; done"}],
+      [{text: "WORKING DIR", color: "#626262"}],
+    ]} />
   </Step>
 
   <Step title="Attach, watch it, then detach without killing it">
@@ -45,19 +46,14 @@ Start a long-running process in a managed session, disconnect from it on purpose
     tyto session attach worker watcher
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    Replaying 32B of earlier output.
-    <br />
-    tick 1
-    <br />
-    tick 2
-    <br />
-    tick 3
-    <br />
-    tick 4
-    <br />
-    tick 5
-    </div>
+    <TerminalOutput lines={[
+      [{text: "Replaying 32B of earlier output."}],
+      [{text: "tick 1"}],
+      [{text: "tick 2"}],
+      [{text: "tick 3"}],
+      [{text: "tick 4"}],
+      [{text: "tick 5"}],
+    ]} />
 
     Ctrl+D (or Ctrl+C once) detaches your terminal — it does not kill the session, unlike a plain `exec`.
   </Step>
@@ -67,13 +63,13 @@ Start a long-running process in a managed session, disconnect from it on purpose
     tyto session list worker
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#444444"}}>┌───────────────────────────────────────────────────────────────────────────────┐</span>
-    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff", fontWeight: 600}}>NAME</span>     <span style={{color: "#5fafff", fontWeight: 600}}>STATUS</span>  <span style={{color: "#5fafff", fontWeight: 600}}>ATTACHED</span>  <span style={{color: "#5fafff", fontWeight: 600}}>COMMAND</span>                           <span style={{color: "#5fafff", fontWeight: 600}}>STARTED</span>          <span style={{color: "#444444"}}>│</span>
-    <span style={{color: "#444444"}}>├───────────────────────────────────────────────────────────────────────────────┤</span>
-    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>watcher</span>  <span style={{color: "#ffd700"}}>idle</span>    <span style={{color: "#626262"}}>no</span>        sh -c i=0; while true; do i=$((…  2026-09-21 12:54 <span style={{color: "#444444"}}>│</span>
-    <span style={{color: "#444444"}}>└───────────────────────────────────────────────────────────────────────────────┘</span>
-    </div>
+    <TerminalOutput lines={[
+      [{text: "┌───────────────────────────────────────────────────────────────────────────────┐", color: "#444444"}],
+      [{text: "│", color: "#444444"}, {text: " "}, {text: "NAME", color: "#5fafff", bold: true}, {text: "     "}, {text: "STATUS", color: "#5fafff", bold: true}, {text: "  "}, {text: "ATTACHED", color: "#5fafff", bold: true}, {text: "  "}, {text: "COMMAND", color: "#5fafff", bold: true}, {text: "                           "}, {text: "STARTED", color: "#5fafff", bold: true}, {text: "          "}, {text: "│", color: "#444444"}],
+      [{text: "├───────────────────────────────────────────────────────────────────────────────┤", color: "#444444"}],
+      [{text: "│", color: "#444444"}, {text: " "}, {text: "watcher", color: "#5fd787"}, {text: "  "}, {text: "idle", color: "#ffd700"}, {text: "    "}, {text: "no", color: "#626262"}, {text: "        sh -c i=0; while true; do i=$((…  2026-09-21 12:54 "}, {text: "│", color: "#444444"}],
+      [{text: "└───────────────────────────────────────────────────────────────────────────────┘", color: "#444444"}],
+    ]} />
 
     `ATTACHED` is now `no` — the session kept running after you detached.
   </Step>
@@ -87,14 +83,14 @@ Start a long-running process in a managed session, disconnect from it on purpose
     tyto session list worker
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#444444"}}>┌───────────────────────────────────────────────────────────────────────────────┐</span>
-    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff", fontWeight: 600}}>NAME</span>     <span style={{color: "#5fafff", fontWeight: 600}}>STATUS</span>  <span style={{color: "#5fafff", fontWeight: 600}}>ATTACHED</span>  <span style={{color: "#5fafff", fontWeight: 600}}>COMMAND</span>                           <span style={{color: "#5fafff", fontWeight: 600}}>STARTED</span>          <span style={{color: "#444444"}}>│</span>
-    <span style={{color: "#444444"}}>├───────────────────────────────────────────────────────────────────────────────┤</span>
-    <span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>watcher</span>  <span style={{color: "#ffd700"}}>idle</span>    <span style={{color: "#626262"}}>no</span>        sh -c i=0; while true; do i=$((…  2026-09-21 12:54 <span style={{color: "#444444"}}>│</span>
-    <span style={{color: "#444444"}}>└───────────────────────────────────────────────────────────────────────────────┘</span>
-    <span style={{color: "#626262"}}>Sandbox is suspended; listed from the suspend-time snapshot.</span>
-    </div>
+    <TerminalOutput lines={[
+      [{text: "┌───────────────────────────────────────────────────────────────────────────────┐", color: "#444444"}],
+      [{text: "│", color: "#444444"}, {text: " "}, {text: "NAME", color: "#5fafff", bold: true}, {text: "     "}, {text: "STATUS", color: "#5fafff", bold: true}, {text: "  "}, {text: "ATTACHED", color: "#5fafff", bold: true}, {text: "  "}, {text: "COMMAND", color: "#5fafff", bold: true}, {text: "                           "}, {text: "STARTED", color: "#5fafff", bold: true}, {text: "          "}, {text: "│", color: "#444444"}],
+      [{text: "├───────────────────────────────────────────────────────────────────────────────┤", color: "#444444"}],
+      [{text: "│", color: "#444444"}, {text: " "}, {text: "watcher", color: "#5fd787"}, {text: "  "}, {text: "idle", color: "#ffd700"}, {text: "    "}, {text: "no", color: "#626262"}, {text: "        sh -c i=0; while true; do i=$((…  2026-09-21 12:54 "}, {text: "│", color: "#444444"}],
+      [{text: "└───────────────────────────────────────────────────────────────────────────────┘", color: "#444444"}],
+      [{text: "Sandbox is suspended; listed from the suspend-time snapshot.", color: "#626262"}],
+    ]} />
   </Step>
 
   <Step title="Reattach">
@@ -104,23 +100,16 @@ Start a long-running process in a managed session, disconnect from it on purpose
     tyto session attach worker watcher
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    Replaying 135B of earlier output.
-    <br />
-    tick 1
-    <br />
-    tick 2
-    <br />
-    tick 3
-    <br />
-    ...
-    <br />
-    tick 14
-    <br />
-    tick 15
-    <br />
-    tick 16
-    </div>
+    <TerminalOutput lines={[
+      [{text: "Replaying 135B of earlier output."}],
+      [{text: "tick 1"}],
+      [{text: "tick 2"}],
+      [{text: "tick 3"}],
+      [{text: "..."}],
+      [{text: "tick 14"}],
+      [{text: "tick 15"}],
+      [{text: "tick 16"}],
+    ]} />
 
     The counter kept climbing the whole time — the same session, not a new one.
   </Step>
@@ -130,12 +119,12 @@ Start a long-running process in a managed session, disconnect from it on purpose
     tyto session kill worker watcher
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    <span style={{color: "#626262"}}>NAME       </span>  watcher
-    <span style={{color: "#626262"}}>STATUS     </span>  <span style={{color: "#ff5f5f"}}>killed</span>
-    <span style={{color: "#626262"}}>COMMAND    </span>  sh -c i=0; while true; do i=$((i+1)); echo "tick $i"; sleep 5; done
-    <span style={{color: "#626262"}}>WORKING DIR</span>
-    </div>
+    <TerminalOutput lines={[
+      [{text: "NAME       ", color: "#626262"}, {text: "  watcher"}],
+      [{text: "STATUS     ", color: "#626262"}, {text: "  "}, {text: "killed", color: "#ff5f5f"}],
+      [{text: "COMMAND    ", color: "#626262"}, {text: "  sh -c i=0; while true; do i=$((i+1)); echo \"tick $i\"; sleep 5; done"}],
+      [{text: "WORKING DIR", color: "#626262"}],
+    ]} />
   </Step>
 
   <Step title="Clean up">
@@ -143,9 +132,9 @@ Start a long-running process in a managed session, disconnect from it on purpose
     tyto delete worker --force
     ```
 
-    <div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-    Deleted sbx-b30c1df7b6d0106ad2bc77558f446f13
-    </div>
+    <TerminalOutput lines={[
+      [{text: "Deleted sbx-b30c1df7b6d0106ad2bc77558f446f13"}],
+    ]} />
   </Step>
 </Steps>
 

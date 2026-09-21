@@ -3,6 +3,8 @@ title: fs
 description: Remote filesystem operations on a sandbox — read, write, upload, download, list, stat, mkdir, rm, mv
 ---
 
+import { TerminalOutput } from "/snippets/terminal-output.jsx";
+
 ## `tyto fs`
 
 Reads and writes files inside a sandbox. Every subcommand names its sandbox by name or id, interchangeably, and omitting it opens a picker:
@@ -87,15 +89,15 @@ tyto fs ls web /workspace
 
 On a real terminal, `tyto fs ls` looks like this:
 
-<div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-<span style={{color: "#444444"}}>┌─────────────────────────────────────────────────────┐</span>
-<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff", fontWeight: 600}}>NAME</span>       <span style={{color: "#5fafff", fontWeight: 600}}>KIND</span>       <span style={{color: "#5fafff", fontWeight: 600}}>SIZE</span>   <span style={{color: "#5fafff", fontWeight: 600}}>MODE</span>  <span style={{color: "#5fafff", fontWeight: 600}}>MODIFIED</span>         <span style={{color: "#444444"}}>│</span>
-<span style={{color: "#444444"}}>├─────────────────────────────────────────────────────┤</span>
-<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>README.md</span>  file       15B    0644  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
-<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>index.js</span>   file       18B    0644  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
-<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff"}}>src/</span>       directory  4.0KB  0755  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
-<span style={{color: "#444444"}}>└─────────────────────────────────────────────────────┘</span>
-</div>
+<TerminalOutput lines={[
+  [{text: "┌─────────────────────────────────────────────────────┐", color: "#444444"}],
+  [{text: "│", color: "#444444"}, {text: " "}, {text: "NAME", color: "#5fafff", bold: true}, {text: "       "}, {text: "KIND", color: "#5fafff", bold: true}, {text: "       "}, {text: "SIZE", color: "#5fafff", bold: true}, {text: "   "}, {text: "MODE", color: "#5fafff", bold: true}, {text: "  "}, {text: "MODIFIED", color: "#5fafff", bold: true}, {text: "         "}, {text: "│", color: "#444444"}],
+  [{text: "├─────────────────────────────────────────────────────┤", color: "#444444"}],
+  [{text: "│", color: "#444444"}, {text: " "}, {text: "README.md", color: "#5fd787"}, {text: "  file       15B    0644  2026-09-20 14:32 "}, {text: "│", color: "#444444"}],
+  [{text: "│", color: "#444444"}, {text: " "}, {text: "index.js", color: "#5fd787"}, {text: "   file       18B    0644  2026-09-20 14:32 "}, {text: "│", color: "#444444"}],
+  [{text: "│", color: "#444444"}, {text: " "}, {text: "src/", color: "#5fafff"}, {text: "       directory  4.0KB  0755  2026-09-20 14:32 "}, {text: "│", color: "#444444"}],
+  [{text: "└─────────────────────────────────────────────────────┘", color: "#444444"}],
+]} />
 
 ## `stat`
 

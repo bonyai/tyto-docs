@@ -3,6 +3,8 @@ title: session
 description: Managed session operations on a sandbox — create, list, attach, kill
 ---
 
+import { TerminalOutput } from "/snippets/terminal-output.jsx";
+
 ## `tyto session`
 
 <Info>Aliases: `sess`, `s`</Info>
@@ -45,15 +47,15 @@ If the sandbox is currently suspended, the listing is served from a suspend-time
 
 On a real terminal, `tyto session list` looks like this:
 
-<div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-<span style={{color: "#444444"}}>┌───────────────────────────────────────────────────────────────┐</span>
-<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff", fontWeight: 600}}>NAME</span>          <span style={{color: "#5fafff", fontWeight: 600}}>STATUS</span>  <span style={{color: "#5fafff", fontWeight: 600}}>ATTACHED</span>  <span style={{color: "#5fafff", fontWeight: 600}}>COMMAND</span>      <span style={{color: "#5fafff", fontWeight: 600}}>STARTED</span>          <span style={{color: "#444444"}}>│</span>
-<span style={{color: "#444444"}}>├───────────────────────────────────────────────────────────────┤</span>
-<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>dev-server</span>    <span style={{color: "#626262"}}>exited</span>  <span style={{color: "#626262"}}>no</span>        npm run dev  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
-<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fd787"}}>dev-server-2</span>  <span style={{color: "#ffd700"}}>idle</span>    <span style={{color: "#626262"}}>no</span>        sleep 3600   2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
-<span style={{color: "#444444"}}>└───────────────────────────────────────────────────────────────┘</span>
-<span style={{color: "#626262"}}>Sandbox is suspended; listed from the suspend-time snapshot.</span>
-</div>
+<TerminalOutput lines={[
+  [{text: "┌───────────────────────────────────────────────────────────────┐", color: "#444444"}],
+  [{text: "│", color: "#444444"}, {text: " "}, {text: "NAME", color: "#5fafff", bold: true}, {text: "          "}, {text: "STATUS", color: "#5fafff", bold: true}, {text: "  "}, {text: "ATTACHED", color: "#5fafff", bold: true}, {text: "  "}, {text: "COMMAND", color: "#5fafff", bold: true}, {text: "      "}, {text: "STARTED", color: "#5fafff", bold: true}, {text: "          "}, {text: "│", color: "#444444"}],
+  [{text: "├───────────────────────────────────────────────────────────────┤", color: "#444444"}],
+  [{text: "│", color: "#444444"}, {text: " "}, {text: "dev-server", color: "#5fd787"}, {text: "    "}, {text: "exited", color: "#626262"}, {text: "  "}, {text: "no", color: "#626262"}, {text: "        npm run dev  2026-09-20 14:32 "}, {text: "│", color: "#444444"}],
+  [{text: "│", color: "#444444"}, {text: " "}, {text: "dev-server-2", color: "#5fd787"}, {text: "  "}, {text: "idle", color: "#ffd700"}, {text: "    "}, {text: "no", color: "#626262"}, {text: "        sleep 3600   2026-09-20 14:32 "}, {text: "│", color: "#444444"}],
+  [{text: "└───────────────────────────────────────────────────────────────┘", color: "#444444"}],
+  [{text: "Sandbox is suspended; listed from the suspend-time snapshot.", color: "#626262"}],
+]} />
 
 ## `attach`
 

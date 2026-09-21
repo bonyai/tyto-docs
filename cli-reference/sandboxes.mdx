@@ -3,6 +3,8 @@ title: Sandboxes
 description: list, get, delete, and exec — inspecting and managing sandboxes you already have
 ---
 
+import { TerminalOutput } from "/snippets/terminal-output.jsx";
+
 This page covers the **Sandboxes** command group: `list`, `get`, `delete`, and `exec`. For creating a sandbox, see [`create`](/cli-reference/create); for a shell, see [`console`](/cli-reference/console).
 
 ## `tyto list`
@@ -41,13 +43,13 @@ tyto list --json | jq -r '.[] | select(.last_observed_status=="running") | .id'
 
 On a real terminal, `tyto list` looks like this:
 
-<div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-<span style={{color: "#444444"}}>┌─────────────────────────────────────────────────────────────────────────┐</span>
-<span style={{color: "#444444"}}>│</span> <span style={{color: "#5fafff", fontWeight: 600}}>ID</span>            <span style={{color: "#5fafff", fontWeight: 600}}>NAME</span>               <span style={{color: "#5fafff", fontWeight: 600}}>STATUS</span>     <span style={{color: "#5fafff", fontWeight: 600}}>TEMPLATE</span>   <span style={{color: "#5fafff", fontWeight: 600}}>CREATED</span>          <span style={{color: "#444444"}}>│</span>
-<span style={{color: "#444444"}}>├─────────────────────────────────────────────────────────────────────────┤</span>
-<span style={{color: "#444444"}}>│</span> sbx-4f1c9a2…  <span style={{color: "#5fd787"}}>web-server</span>  <span style={{color: "#ffd700"}}>suspended</span>  bonya-dev  2026-09-20 14:32 <span style={{color: "#444444"}}>│</span>
-<span style={{color: "#444444"}}>└─────────────────────────────────────────────────────────────────────────┘</span>
-</div>
+<TerminalOutput lines={[
+  [{text: "┌─────────────────────────────────────────────────────────────────────────┐", color: "#444444"}],
+  [{text: "│", color: "#444444"}, {text: " "}, {text: "ID", color: "#5fafff", bold: true}, {text: "            "}, {text: "NAME", color: "#5fafff", bold: true}, {text: "               "}, {text: "STATUS", color: "#5fafff", bold: true}, {text: "     "}, {text: "TEMPLATE", color: "#5fafff", bold: true}, {text: "   "}, {text: "CREATED", color: "#5fafff", bold: true}, {text: "          "}, {text: "│", color: "#444444"}],
+  [{text: "├─────────────────────────────────────────────────────────────────────────┤", color: "#444444"}],
+  [{text: "│", color: "#444444"}, {text: " sbx-4f1c9a2…  "}, {text: "web-server", color: "#5fd787"}, {text: "  "}, {text: "suspended", color: "#ffd700"}, {text: "  bonya-dev  2026-09-20 14:32 "}, {text: "│", color: "#444444"}],
+  [{text: "└─────────────────────────────────────────────────────────────────────────┘", color: "#444444"}],
+]} />
 
 ## `tyto get [sandbox]`
 

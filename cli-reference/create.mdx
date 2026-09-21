@@ -3,6 +3,8 @@ title: create
 description: Create a new sandbox from a template
 ---
 
+import { TerminalOutput } from "/snippets/terminal-output.jsx";
+
 ## `tyto create [name]`
 
 <Info>Aliases: `new`, `c`</Info>
@@ -82,11 +84,11 @@ tyto create --template bonya-dev --version 2024.11
 
 On a real terminal, a successful create looks like this:
 
-<div style={{background: "#171717", borderRadius: "5px", color: "white", fontFamily: "SFMono-Regular, Monaco, Menlo, Consolas, monospace", fontSize: "13px", lineHeight: "20px", padding: "14px 18px", whiteSpace: "pre-wrap", overflowX: "auto"}}>
-<span style={{color: "#626262"}}>ID       </span>  sbx-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b
-<span style={{color: "#626262"}}>NAME     </span>  web-server
-<span style={{color: "#626262"}}>STATUS   </span>  <span style={{color: "#5fd787"}}>running</span>
-<span style={{color: "#626262"}}>TEMPLATE </span>  bonya-dev
-<span style={{color: "#626262"}}>VERSION  </span>  2
-<span style={{color: "#626262"}}>OPERATION</span>  <span style={{color: "#626262"}}>op-1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c</span>
-</div>
+<TerminalOutput lines={[
+  [{text: "ID       ", color: "#626262"}, {text: "  sbx-4f1c9a2b3c4d5e6f7a8b9c0d1e2f3a4b"}],
+  [{text: "NAME     ", color: "#626262"}, {text: "  web-server"}],
+  [{text: "STATUS   ", color: "#626262"}, {text: "  "}, {text: "running", color: "#5fd787"}],
+  [{text: "TEMPLATE ", color: "#626262"}, {text: "  bonya-dev"}],
+  [{text: "VERSION  ", color: "#626262"}, {text: "  2"}],
+  [{text: "OPERATION", color: "#626262"}, {text: "  "}, {text: "op-1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c", color: "#626262"}],
+]} />
