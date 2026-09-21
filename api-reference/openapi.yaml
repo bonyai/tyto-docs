@@ -10,6 +10,9 @@ info:
     are RFC 9457 application/problem+json with a stable machine-readable code.
     WebSocket endpoints are HTTP GET upgrades; their options travel in the
     START frame, never in query strings.
+servers:
+  - url: https://api.tyto.run
+    description: Production
 security:
   - personalApiKey: []
   - supabaseJwt: []
